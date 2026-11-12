@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 600" width="400" height="600" role="img" aria-label="جلد کتاب تاریخ تمدن اثر ویل دورانت">
+  <defs>
+    <linearGradient id="cover-bg-12" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3d405b"/>
+      <stop offset="1" stop-color="#1e2030"/>
+    </linearGradient>
+    <linearGradient id="cover-sheen-12" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.10"/>
+      <stop offset="0.45" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="600" fill="url(#cover-bg-12)"/>
+  <rect width="400" height="600" fill="url(#cover-sheen-12)"/>
+
+    <rect x="34" y="34" width="332" height="532" rx="14" fill="none" stroke="#f4f1de" stroke-width="1.5" opacity="0.45"/>
+    <rect x="46" y="46" width="308" height="508" rx="10" fill="none" stroke="#f4f1de" stroke-width="0.75" opacity="0.3"/>
+    <path d="M200 88 L224 124 L200 160 L176 124 Z" fill="#f4f1de" opacity="0.75"/>
+    <path d="M200 104 L212 124 L200 144 L188 124 Z" fill="#000" opacity="0.18"/>
+    <circle cx="62" cy="258" r="4" fill="#f4f1de" opacity="0.6"/>
+    <circle cx="338" cy="258" r="4" fill="#f4f1de" opacity="0.6"/>
+  <text x="200" y="52" text-anchor="middle" font-family="Tahoma, 'Segoe UI', sans-serif" font-size="14" fill="#f4f1de" opacity="0.85" direction="rtl">تاریخ</text>
+  <line x1="168" y1="68" x2="232" y2="68" stroke="#f4f1de" stroke-width="1.5" opacity="0.5"/>
+  <text x="200" text-anchor="middle" font-family="Tahoma, 'Segoe UI', sans-serif" font-size="36" font-weight="bold" fill="#ffffff" direction="rtl"><tspan x="200" y="372">تاریخ تمدن</tspan></text>
+  <line x1="150" y1="474" x2="250" y2="474" stroke="#f4f1de" stroke-width="2" opacity="0.75"/>
+  <text x="200" y="522" text-anchor="middle" font-family="Tahoma, 'Segoe UI', sans-serif" font-size="20" fill="#f4f1de" opacity="0.95" direction="rtl">ویل دورانت</text>
+  <text x="200" y="556" text-anchor="middle" font-family="Tahoma, 'Segoe UI', sans-serif" font-size="12" fill="#ffffff" opacity="0.55" direction="rtl">کتابخانه</text>
+</svg>

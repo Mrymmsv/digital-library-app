@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="کتابخانه، فروشگاه کتاب آنلاین برای مرور، جست‌وجو و خواندن نمونهٔ کتاب‌ها">
+  <title>کتابخانه | کتاب بعدی‌ات را پیدا کن</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="brand" href="index.html" aria-label="کتابخانه، صفحهٔ اصلی">
+        <span class="brand-mark" aria-hidden="true">ک</span>
+        <span class="brand-name">کتابخانه</span>
+      </a>
+      <nav class="site-nav" aria-label="ناوبری اصلی">
+        <a class="nav-link is-active" href="index.html">خانه</a>
+        <a class="nav-link" href="#books">کتاب‌ها</a>
+        <a class="nav-link" href="#books">کتابخانهٔ من</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero container" aria-labelledby="hero-title">
+      <h1 id="hero-title">کتاب بعدی‌ات را پیدا کن</h1>
+      <p class="hero-text">
+        هزاران داستان، اندیشه و تاریخ در انتظار توست. کتاب‌ها را مرور کن،
+        نمونه‌ای بخوان و آن‌چه را دوست داری، به کتابخانه‌ات اضافه کن.
+      </p>
+    </section>
+
+    <section class="stats container" aria-label="خلاصهٔ کتابخانه">
+      <div class="stat">
+        <span class="stat-value" id="stat-total">۰</span>
+        <span class="stat-label">کتاب</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value" id="stat-categories">۰</span>
+        <span class="stat-label">دسته‌بندی</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value" id="stat-free">۰</span>
+        <span class="stat-label">کتاب رایگان</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value" id="stat-samples">۰</span>
+        <span class="stat-label">کتاب با نمونه</span>
+      </div>
+    </section>
+
+    <section class="books-section container" id="books" aria-labelledby="books-title">
+      <div class="section-head">
+        <h2 id="books-title">تازه‌ترین کتاب‌ها</h2>
+        <p class="section-note">برای دیدن جزئیات، روی هر کتاب تمرکز کن.</p>
+      </div>
+      <div class="book-grid" id="book-grid"></div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <p>کتابخانه — مرور و خواندن نمونهٔ کتاب‌ها، کاملاً آفلاین.</p>
+    </div>
+  </footer>
+
+  <script src="js/books.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
