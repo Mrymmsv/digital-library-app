@@ -107,7 +107,7 @@ const BOOKS = [
     category: "ادبیات",
     cover: "assets/covers/book-8.svg",
     description: "روایت راوی‌ای تنها و آشفته که در اتاقی تاریک زندگی می‌کند. یکی از مهم‌ترین رمان‌های مدرن فارسی با فضایی سوررئال و نمادین.",
-    price: 95000,
+    price: 0,
     rating: 4.6,
     sampleParagraphs: []
   },
