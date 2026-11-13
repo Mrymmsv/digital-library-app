@@ -15,6 +15,21 @@ const COLLECTION_LABELS = {
   free: "کتاب‌های رایگان"
 };
 
+const CATALOG_SORTS = ["default", "price-asc", "price-desc", "rating-desc"];
+const CATALOG_SORT_LABELS = {
+  default: "پیش‌فرض",
+  "price-asc": "ارزان‌ترین",
+  "price-desc": "گران‌ترین",
+  "rating-desc": "بیشترین امتیاز"
+};
+const EMPTY_CATALOG_STATE = {
+  q: "",
+  category: "",
+  freeOnly: false,
+  collection: "",
+  sort: "default"
+};
+
 const numberFormatter = new Intl.NumberFormat("fa-IR");
 const ratingFormatter = new Intl.NumberFormat("fa-IR", {
   minimumFractionDigits: 1,
@@ -294,11 +309,16 @@ function navigate(target) {
   const hash = target.startsWith("#") ? target : `#${target}`;
 
   if (window.location.hash === hash) {
-    renderRoute({ focus: true });
+    renderRoute({ focus: shouldFocusMain() });
     return;
   }
 
   window.location.hash = hash;
+}
+
+function shouldFocusMain() {
+  const active = document.activeElement;
+  return !active || active.id !== "search-input";
 }
 
 function routeTitle(route) {
@@ -353,8 +373,17 @@ function syncSearchField(route) {
     return;
   }
 
-  input.value =
-    route.name === "catalog" ? route.params.get("q") || "" : "";
+  const nextValue = route.name === "catalog" ? route.params.get("q") || "" : "";
+
+  if (input.value === nextValue) {
+    return;
+  }
+
+  if (route.name === "catalog" && document.activeElement === input) {
+    return;
+  }
+
+  input.value = nextValue;
 }
 
 function renderRoute(options) {
@@ -1046,56 +1075,476 @@ function buildCategoriesView() {
    Catalog view
    ========================================================================== */
 
-function filterByCollection(books, collection) {
-  if (collection === "featured") {
-    return books.filter((book) => book.featured);
+function normalizeSearchText(value) {
+  if (typeof value !== "string") {
+    return "";
   }
-  if (collection === "new") {
-    return books.filter((book) => book.isNew);
-  }
-  if (collection === "free") {
-    return books.filter((book) => book.price === 0);
-  }
-  return books;
+
+  return value
+    .toLowerCase()
+    .replace(/ي/g, "ی")
+    .replace(/ك/g, "ک")
+    .replace(/\u200c/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-function buildCatalogView(route) {
-  const params = route.params;
-  const collection = params.get("collection");
-  const category = params.get("category");
-  const query = (params.get("q") || "").trim();
+function readCatalogState(params) {
+  const collectionParam = params.get("collection") || "";
+  const categoryParam = params.get("category") || "";
+  const sortParam = params.get("sort") || "default";
 
-  let books = BOOKS.slice();
-  let heading = "فهرست کتاب‌ها";
+  let collection = "";
+  let freeOnly = params.get("free") === "1";
 
-  if (category) {
-    books = books.filter((book) => book.category === category);
-    heading = `کتاب‌های ${category}`;
+  if (collectionParam === "featured" || collectionParam === "new") {
+    collection = collectionParam;
+  } else if (collectionParam === "free") {
+    freeOnly = true;
   }
 
-  if (collection && COLLECTION_LABELS[collection]) {
-    books = filterByCollection(books, collection);
+  return {
+    q: (params.get("q") || "").trim(),
+    category: CATEGORIES.includes(categoryParam) ? categoryParam : "",
+    freeOnly,
+    collection,
+    sort: CATALOG_SORTS.includes(sortParam) ? sortParam : "default"
+  };
+}
 
-    if (!category) {
-      heading = COLLECTION_LABELS[collection];
+function currentCatalogState() {
+  return readCatalogState(parseRoute().params);
+}
+
+function buildCatalogHash(catalogState) {
+  const params = new URLSearchParams();
+  const query = (catalogState.q || "").trim();
+
+  if (query) {
+    params.set("q", query);
+  }
+
+  if (catalogState.category) {
+    params.set("category", catalogState.category);
+  }
+
+  if (catalogState.freeOnly) {
+    params.set("free", "1");
+  }
+
+  if (catalogState.collection) {
+    params.set("collection", catalogState.collection);
+  }
+
+  if (catalogState.sort && catalogState.sort !== "default") {
+    params.set("sort", catalogState.sort);
+  }
+
+  const queryString = params.toString();
+  return queryString ? `#catalog?${queryString}` : "#catalog";
+}
+
+function hasActiveCatalogFilters(catalogState) {
+  return Boolean(
+    catalogState.q ||
+      catalogState.category ||
+      catalogState.freeOnly ||
+      catalogState.collection ||
+      catalogState.sort !== "default"
+  );
+}
+
+function catalogHeading(catalogState) {
+  if (catalogState.q) {
+    return `نتایج جست‌وجو برای «${catalogState.q}»`;
+  }
+
+  if (catalogState.category) {
+    return `کتاب‌های ${catalogState.category}`;
+  }
+
+  if (catalogState.collection && COLLECTION_LABELS[catalogState.collection]) {
+    return COLLECTION_LABELS[catalogState.collection];
+  }
+
+  if (catalogState.freeOnly) {
+    return COLLECTION_LABELS.free;
+  }
+
+  return "فهرست کتاب‌ها";
+}
+
+function filterCatalogBooks(catalogState) {
+  let books = BOOKS.slice();
+
+  if (catalogState.category) {
+    books = books.filter((book) => book.category === catalogState.category);
+  }
+
+  if (catalogState.freeOnly) {
+    books = books.filter((book) => book.price === 0);
+  }
+
+  if (catalogState.collection === "featured") {
+    books = books.filter((book) => book.featured);
+  } else if (catalogState.collection === "new") {
+    books = books.filter((book) => book.isNew);
+  }
+
+  if (catalogState.q) {
+    const needle = normalizeSearchText(catalogState.q);
+
+    if (needle) {
+      books = books.filter((book) => {
+        return (
+          normalizeSearchText(book.title).includes(needle) ||
+          normalizeSearchText(book.author).includes(needle)
+        );
+      });
     }
   }
 
-  if (query) {
-    const needle = query.toLowerCase();
-    books = books.filter((book) => {
-      return (
-        book.title.toLowerCase().includes(needle) ||
-        book.author.toLowerCase().includes(needle) ||
-        book.category.toLowerCase().includes(needle)
-      );
-    });
-    heading = `نتایج جست‌وجو برای «${query}»`;
+  return books;
+}
+
+function sortCatalogBooks(books, sort) {
+  const sorted = books.slice();
+
+  if (sort === "price-asc") {
+    sorted.sort((a, b) => a.price - b.price);
+  } else if (sort === "price-desc") {
+    sorted.sort((a, b) => b.price - a.price);
+  } else if (sort === "rating-desc") {
+    sorted.sort((a, b) => b.rating - a.rating);
   }
 
-  if (collection === "featured") {
-    books = books.sort((a, b) => b.rating - a.rating);
+  return sorted;
+}
+
+function createCatalogSelectField(labelText, id, options, selectedValue, onChange) {
+  const field = document.createElement("div");
+  field.className = "catalog-field";
+
+  const label = document.createElement("label");
+  label.htmlFor = id;
+  label.textContent = labelText;
+
+  const select = document.createElement("select");
+  select.className = "catalog-select";
+  select.id = id;
+
+  for (const option of options) {
+    const node = document.createElement("option");
+    node.value = option.value;
+    node.textContent = option.label;
+
+    if (option.value === selectedValue) {
+      node.selected = true;
+    }
+
+    select.appendChild(node);
   }
+
+  select.addEventListener("change", () => {
+    onChange(select.value);
+  });
+
+  field.appendChild(label);
+  field.appendChild(select);
+  return field;
+}
+
+function createCatalogToolbar(catalogState) {
+  const toolbar = document.createElement("div");
+  toolbar.className = "catalog-toolbar";
+  toolbar.setAttribute("role", "search");
+  toolbar.setAttribute("aria-label", "جست‌وجو و فیلتر کتاب‌ها");
+
+  const searchField = document.createElement("div");
+  searchField.className = "catalog-field catalog-search-field";
+
+  const searchLabel = document.createElement("label");
+  searchLabel.htmlFor = "catalog-search-input";
+  searchLabel.textContent = "جست‌وجو در فهرست";
+
+  const searchInput = document.createElement("input");
+  searchInput.className = "catalog-input";
+  searchInput.id = "catalog-search-input";
+  searchInput.type = "search";
+  searchInput.placeholder = "نام کتاب یا نویسنده…";
+  searchInput.autocomplete = "off";
+  searchInput.value = catalogState.q;
+  searchInput.addEventListener("input", () => {
+    applyCatalogState(
+      { ...currentCatalogState(), q: searchInput.value.trim() },
+      { source: "catalog-search" }
+    );
+  });
+
+  searchField.appendChild(searchLabel);
+  searchField.appendChild(searchInput);
+
+  const categoryField = createCatalogSelectField(
+    "دسته‌بندی",
+    "catalog-category-select",
+    [{ value: "", label: "همهٔ دسته‌ها" }].concat(
+      CATEGORIES.map((category) => ({ value: category, label: category }))
+    ),
+    catalogState.category,
+    (value) => {
+      applyCatalogState(
+        { ...currentCatalogState(), category: value },
+        { source: "category" }
+      );
+    }
+  );
+
+  const collectionField = createCatalogSelectField(
+    "مجموعه",
+    "catalog-collection-select",
+    [
+      { value: "", label: "همهٔ کتاب‌ها" },
+      { value: "featured", label: COLLECTION_LABELS.featured },
+      { value: "new", label: COLLECTION_LABELS.new }
+    ],
+    catalogState.collection,
+    (value) => {
+      applyCatalogState(
+        { ...currentCatalogState(), collection: value },
+        { source: "collection" }
+      );
+    }
+  );
+
+  const freeLabel = document.createElement("label");
+  freeLabel.className = "catalog-check";
+
+  const freeCheckbox = document.createElement("input");
+  freeCheckbox.type = "checkbox";
+  freeCheckbox.id = "catalog-free-checkbox";
+  freeCheckbox.checked = catalogState.freeOnly;
+  freeCheckbox.addEventListener("change", () => {
+    applyCatalogState(
+      { ...currentCatalogState(), freeOnly: freeCheckbox.checked },
+      { source: "free" }
+    );
+  });
+
+  const freeText = document.createElement("span");
+  freeText.textContent = "فقط کتاب‌های رایگان";
+
+  freeLabel.appendChild(freeCheckbox);
+  freeLabel.appendChild(freeText);
+
+  const sortField = createCatalogSelectField(
+    "مرتب‌سازی",
+    "catalog-sort-select",
+    CATALOG_SORTS.map((sort) => ({
+      value: sort,
+      label: CATALOG_SORT_LABELS[sort]
+    })),
+    catalogState.sort,
+    (value) => {
+      applyCatalogState(
+        { ...currentCatalogState(), sort: value },
+        { source: "sort" }
+      );
+    }
+  );
+
+  const clearButton = document.createElement("button");
+  clearButton.type = "button";
+  clearButton.id = "catalog-clear";
+  clearButton.className = "btn btn-primary catalog-clear";
+  clearButton.textContent = "پاک کردن فیلترها";
+  clearButton.hidden = !hasActiveCatalogFilters(catalogState);
+  clearButton.addEventListener("click", clearCatalogFilters);
+
+  toolbar.appendChild(searchField);
+  toolbar.appendChild(categoryField);
+  toolbar.appendChild(collectionField);
+  toolbar.appendChild(freeLabel);
+  toolbar.appendChild(sortField);
+  toolbar.appendChild(clearButton);
+  return toolbar;
+}
+
+function createCatalogChips() {
+  const chips = document.createElement("div");
+  chips.className = "catalog-chips";
+  chips.id = "catalog-chips";
+  return chips;
+}
+
+function renderCatalogChips(catalogState, container) {
+  if (!container) {
+    return;
+  }
+
+  container.replaceChildren();
+  const labels = [];
+
+  if (catalogState.q) {
+    labels.push(`جست‌وجو: «${catalogState.q}»`);
+  }
+
+  if (catalogState.category) {
+    labels.push(`دسته: ${catalogState.category}`);
+  }
+
+  if (catalogState.freeOnly) {
+    labels.push(COLLECTION_LABELS.free);
+  }
+
+  if (catalogState.collection) {
+    labels.push(`مجموعه: ${COLLECTION_LABELS[catalogState.collection]}`);
+  }
+
+  if (catalogState.sort !== "default") {
+    labels.push(`مرتب‌سازی: ${CATALOG_SORT_LABELS[catalogState.sort]}`);
+  }
+
+  for (const label of labels) {
+    const chip = document.createElement("span");
+    chip.className = "filter-chip";
+    chip.textContent = label;
+    container.appendChild(chip);
+  }
+}
+
+function createCatalogEmptyState() {
+  const box = document.createElement("div");
+  box.className = "empty-state";
+
+  const heading = document.createElement("h2");
+  heading.textContent = "کتابی با این مشخصات پیدا نشد";
+
+  const text = document.createElement("p");
+  text.textContent =
+    "عبارت جست‌وجو یا فیلترها را تغییر دهید، یا همهٔ فیلترها را پاک کنید و همهٔ کتاب‌ها را ببینید.";
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "btn btn-primary";
+  button.textContent = "پاک کردن فیلترها";
+  button.addEventListener("click", clearCatalogFilters);
+
+  box.appendChild(heading);
+  box.appendChild(text);
+  box.appendChild(button);
+  return box;
+}
+
+function getCatalogElements() {
+  return {
+    heading: document.getElementById("catalog-heading"),
+    count: document.getElementById("catalog-count"),
+    results: document.getElementById("catalog-results"),
+    chips: document.getElementById("catalog-chips"),
+    clear: document.getElementById("catalog-clear"),
+    search: document.getElementById("catalog-search-input"),
+    category: document.getElementById("catalog-category-select"),
+    collection: document.getElementById("catalog-collection-select"),
+    sort: document.getElementById("catalog-sort-select"),
+    free: document.getElementById("catalog-free-checkbox")
+  };
+}
+
+function syncCatalogControls(catalogState, source, elements) {
+  if (
+    elements.search &&
+    source !== "catalog-search" &&
+    elements.search.value !== catalogState.q
+  ) {
+    elements.search.value = catalogState.q;
+  }
+
+  if (elements.category && elements.category.value !== catalogState.category) {
+    elements.category.value = catalogState.category;
+  }
+
+  if (
+    elements.collection &&
+    elements.collection.value !== catalogState.collection
+  ) {
+    elements.collection.value = catalogState.collection;
+  }
+
+  if (elements.sort && elements.sort.value !== catalogState.sort) {
+    elements.sort.value = catalogState.sort;
+  }
+
+  if (elements.free) {
+    elements.free.checked = catalogState.freeOnly;
+  }
+}
+
+function syncHeaderSearch(catalogState) {
+  const input = document.getElementById("search-input");
+
+  if (!input || document.activeElement === input) {
+    return;
+  }
+
+  if (input.value !== catalogState.q) {
+    input.value = catalogState.q;
+  }
+}
+
+function paintCatalog(catalogState, elements) {
+  const books = sortCatalogBooks(
+    filterCatalogBooks(catalogState),
+    catalogState.sort
+  );
+
+  if (elements.heading) {
+    elements.heading.textContent = catalogHeading(catalogState);
+  }
+
+  if (elements.count) {
+    elements.count.textContent = `${formatCount(books.length)} کتاب`;
+  }
+
+  if (elements.results) {
+    elements.results.replaceChildren(
+      books.length === 0 ? createCatalogEmptyState() : createBookGrid(books)
+    );
+  }
+
+  if (elements.clear) {
+    elements.clear.hidden = !hasActiveCatalogFilters(catalogState);
+  }
+
+  renderCatalogChips(catalogState, elements.chips);
+}
+
+function applyCatalogState(catalogState, options) {
+  const settings = options || {};
+  const hash = buildCatalogHash(catalogState);
+
+  if (window.location.hash !== hash) {
+    window.history.replaceState(null, "", hash);
+  }
+
+  const elements = getCatalogElements();
+  syncCatalogControls(catalogState, settings.source, elements);
+  paintCatalog(catalogState, elements);
+  syncHeaderSearch(catalogState);
+
+  if (settings.focusSearch && elements.search) {
+    elements.search.focus();
+  }
+}
+
+function clearCatalogFilters() {
+  applyCatalogState(
+    { ...EMPTY_CATALOG_STATE },
+    { source: "clear", focusSearch: true }
+  );
+}
+
+function buildCatalogView(route) {
+  const catalogState = readCatalogState(route.params);
 
   const page = document.createElement("section");
   page.className = "page";
@@ -1104,30 +1553,33 @@ function buildCatalogView(route) {
   head.className = "page-head";
 
   const title = document.createElement("h1");
-  title.textContent = heading;
+  title.id = "catalog-heading";
 
   const lead = document.createElement("p");
   lead.className = "page-lead";
-  lead.textContent = `${formatCount(books.length)} کتاب در این بخش.`;
+  lead.id = "catalog-count";
+  lead.setAttribute("aria-live", "polite");
 
   head.appendChild(title);
   head.appendChild(lead);
   page.appendChild(head);
 
-  if (books.length === 0) {
-    page.appendChild(
-      createEmptyState(
-        "کتابی پیدا نشد",
-        query
-          ? `برای «${query}» نتیجه‌ای وجود ندارد. عبارت دیگری را امتحان کنید یا همهٔ کتاب‌ها را ببینید.`
-          : "در این بخش هنوز کتابی ثبت نشده است. همهٔ کتاب‌ها را ببینید.",
-        "#catalog",
-        "مشاهدهٔ همهٔ کتاب‌ها"
-      )
-    );
-  } else {
-    page.appendChild(createBookGrid(books));
-  }
+  const toolbar = createCatalogToolbar(catalogState);
+  const chips = createCatalogChips();
+  const results = document.createElement("div");
+  results.id = "catalog-results";
+
+  page.appendChild(toolbar);
+  page.appendChild(chips);
+  page.appendChild(results);
+
+  paintCatalog(catalogState, {
+    heading: title,
+    count: lead,
+    results,
+    chips,
+    clear: toolbar.querySelector("#catalog-clear")
+  });
 
   return page;
 }
@@ -1437,7 +1889,36 @@ function initControls() {
     searchForm.addEventListener("submit", (event) => {
       event.preventDefault();
       const query = searchInput.value.trim();
-      navigate(query ? `catalog?q=${encodeURIComponent(query)}` : "catalog");
+
+      if (parseRoute().name === "catalog") {
+        applyCatalogState(
+          { ...currentCatalogState(), q: query },
+          { source: "header-search" }
+        );
+        return;
+      }
+
+      navigate(buildCatalogHash({ ...EMPTY_CATALOG_STATE, q: query }));
+    });
+  }
+
+  if (searchInput) {
+    searchInput.addEventListener("input", () => {
+      const query = searchInput.value.trim();
+
+      if (parseRoute().name === "catalog") {
+        applyCatalogState(
+          { ...currentCatalogState(), q: query },
+          { source: "header-search" }
+        );
+        return;
+      }
+
+      if (!query) {
+        return;
+      }
+
+      navigate(buildCatalogHash({ ...EMPTY_CATALOG_STATE, q: query }));
     });
   }
 }
@@ -1452,6 +1933,6 @@ subscribe(() => {
 
 initControls();
 window.addEventListener("hashchange", () => {
-  renderRoute({ focus: true });
+  renderRoute({ focus: shouldFocusMain() });
 });
 renderRoute({ focus: false });

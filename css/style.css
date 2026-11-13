@@ -952,6 +952,120 @@ button {
 }
 
 /* ==========================================================================
+   Catalog toolbar + filters
+   ========================================================================== */
+.catalog-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px 16px;
+  min-width: 0;
+  padding: 16px;
+  margin-bottom: 14px;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-soft);
+}
+
+.catalog-field {
+  display: flex;
+  flex: 0 1 auto;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.catalog-field > label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-muted);
+}
+
+.catalog-search-field {
+  flex: 1 1 240px;
+}
+
+.catalog-input,
+.catalog-select {
+  width: 100%;
+  min-width: 0;
+  padding: 9px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.catalog-select {
+  min-width: 150px;
+  cursor: pointer;
+}
+
+.catalog-input:focus,
+.catalog-select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-soft);
+}
+
+.catalog-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.catalog-check input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
+.catalog-clear {
+  flex: 0 0 auto;
+  margin-inline-start: auto;
+}
+
+.catalog-clear[hidden] {
+  display: none;
+}
+
+.catalog-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: clamp(14px, 2.4vw, 22px);
+}
+
+.catalog-chips:empty {
+  display: none;
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background-color: var(--color-primary-soft);
+  color: var(--color-primary-dark);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+/* ==========================================================================
    Book detail
    ========================================================================== */
 .book-detail {
@@ -1172,6 +1286,10 @@ button {
     margin-inline-start: auto;
   }
 
+  .catalog-search-field {
+    flex-basis: 100%;
+  }
+
   .hero {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1200,6 +1318,32 @@ button {
 
   .site-nav {
     gap: 8px 14px;
+  }
+
+  .catalog-toolbar {
+    gap: 10px 12px;
+    padding: 14px;
+  }
+
+  .catalog-field {
+    flex: 1 1 140px;
+  }
+
+  .catalog-search-field {
+    flex-basis: 100%;
+  }
+
+  .catalog-select {
+    min-width: 0;
+  }
+
+  .catalog-check,
+  .catalog-clear {
+    flex: 1 1 100%;
+  }
+
+  .catalog-clear {
+    margin-inline-start: 0;
   }
 
   .stats {
