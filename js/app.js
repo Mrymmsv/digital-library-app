@@ -196,6 +196,27 @@ function toggleFavorite(bookId) {
   setState({ ...state, favorites });
 }
 
+function addOwnedBook(bookId) {
+  if (!VALID_BOOK_IDS.has(bookId)) {
+    return false;
+  }
+
+  if (state.ownedBooks.includes(bookId)) {
+    return false;
+  }
+
+  setState({ ...state, ownedBooks: [...state.ownedBooks, bookId] });
+  return true;
+}
+
+/**
+ * Step 6 hook: login and purchase confirmation belong here, so the detail view
+ * never needs to know how a book reaches the library.
+ */
+function requestAcquire(book) {
+  return addOwnedBook(book.id);
+}
+
 function setTheme(theme) {
   if (!THEMES.includes(theme)) {
     return;
@@ -278,7 +299,7 @@ function parseRoute() {
     return { name: "login", params };
   }
 
-  if (path.startsWith("book/")) {
+  if (path === "book" || path.startsWith("book/")) {
     let bookId = path.slice("book/".length);
 
     try {
@@ -331,7 +352,7 @@ function routeTitle(route) {
       return "فهرست کتاب‌ها | کتابخانه";
     case "book": {
       const book = BOOK_BY_ID.get(route.bookId);
-      return book ? `${book.title} | کتابخانه` : "کتاب پیدا نشد | کتابخانه";
+      return book ? `${book.title} | کتابخانه` : "کتاب یافت نشد | کتابخانه";
     }
     case "reader":
       return "خواندن نمونه | کتابخانه";
@@ -407,6 +428,7 @@ function renderRoute(options) {
   syncThemeControl();
   syncHeader();
   syncFavoriteButtons();
+  syncDetailOwnership();
 
   if (options && options.focus) {
     main.focus({ preventScroll: true });
@@ -1588,11 +1610,141 @@ function buildCatalogView(route) {
    Book detail view
    ========================================================================== */
 
+function buildSampleAction(book) {
+  const hasSample = book.sampleParagraphs.length > 0;
+
+  if (!hasSample) {
+    const disabled = document.createElement("button");
+    disabled.type = "button";
+    disabled.className = "btn btn-secondary";
+    disabled.disabled = true;
+    disabled.setAttribute("aria-disabled", "true");
+    disabled.textContent = "مطالعهٔ نمونه";
+    return disabled;
+  }
+
+  const link = document.createElement("a");
+  link.className = "btn btn-secondary";
+  link.href = `#reader/${encodeURIComponent(book.id)}`;
+  link.textContent = "مطالعهٔ نمونه";
+  return link;
+}
+
+function buildOwnershipAction(book) {
+  if (state.ownedBooks.includes(book.id)) {
+    const link = document.createElement("a");
+    link.className = "btn btn-primary is-owned";
+    link.href = "#library";
+    link.textContent = "در کتابخانه شما — مشاهده در کتابخانه";
+    return link;
+  }
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "btn btn-primary";
+  button.textContent =
+    book.price === 0
+      ? "دریافت رایگان"
+      : `خرید نسخهٔ الکترونیکی — ${formatPrice(book.price)}`;
+  button.addEventListener("click", () => {
+    requestAcquire(book);
+    focusOwnershipAction();
+  });
+  return button;
+}
+
+function fillOwnershipSlot(slot, book) {
+  slot.textContent = "";
+  slot.appendChild(buildOwnershipAction(book));
+
+  if (state.ownedBooks.includes(book.id)) {
+    const note = document.createElement("span");
+    note.className = "detail-ownership-note";
+    note.textContent = "این کتاب در کتابخانهٔ شما ذخیره شده است.";
+    slot.appendChild(note);
+  }
+}
+
+function buildOwnershipSlot(book) {
+  const slot = document.createElement("div");
+  slot.className = "detail-ownership";
+  slot.dataset.bookId = book.id;
+  slot.dataset.owned = String(state.ownedBooks.includes(book.id));
+  slot.setAttribute("role", "status");
+  slot.setAttribute("aria-live", "polite");
+  fillOwnershipSlot(slot, book);
+  return slot;
+}
+
+function syncDetailOwnership() {
+  const slot = document.querySelector(".detail-ownership");
+
+  if (!slot) {
+    return;
+  }
+
+  const book = BOOK_BY_ID.get(slot.dataset.bookId);
+
+  if (!book) {
+    return;
+  }
+
+  const isOwned = state.ownedBooks.includes(book.id);
+
+  if (slot.dataset.owned === String(isOwned)) {
+    return;
+  }
+
+  slot.dataset.owned = String(isOwned);
+  fillOwnershipSlot(slot, book);
+}
+
+function focusOwnershipAction() {
+  const slot = document.querySelector(".detail-ownership");
+
+  if (!slot) {
+    return;
+  }
+
+  const action = slot.querySelector(".btn");
+
+  if (action) {
+    action.focus();
+  }
+}
+
+function createRelatedSection(book) {
+  const related = BOOKS.filter(
+    (item) => item.category === book.category && item.id !== book.id
+  ).slice(0, 4);
+
+  if (related.length === 0) {
+    return null;
+  }
+
+  const section = document.createElement("section");
+  section.className = "detail-related";
+  section.setAttribute("aria-labelledby", "detail-related-title");
+
+  const head = createSectionHead(
+    `کتاب‌های مرتبط در دستهٔ «${book.category}»`,
+    {
+      linkHref: categoryHref(book.category),
+      linkLabel: "همهٔ کتاب‌های این دسته"
+    }
+  );
+  head.querySelector("h2").id = "detail-related-title";
+
+  section.appendChild(head);
+  section.appendChild(createBookGrid(related));
+  return section;
+}
+
 function buildBookDetailView(route) {
   const book = BOOK_BY_ID.get(route.bookId);
 
   if (!book) {
-    return buildNotFoundView();
+    return buildBookNotFoundView();
   }
 
   const page = document.createElement("section");
@@ -1619,9 +1771,14 @@ function buildBookDetailView(route) {
   const info = document.createElement("div");
   info.className = "detail-info";
 
-  const category = document.createElement("span");
+  const category = document.createElement("a");
   category.className = "detail-category";
+  category.href = categoryHref(book.category);
   category.textContent = book.category;
+  category.setAttribute(
+    "aria-label",
+    `مشاهدهٔ کتاب‌های دستهٔ ${book.category}`
+  );
 
   const heading = document.createElement("h1");
   heading.textContent = book.title;
@@ -1647,6 +1804,8 @@ function buildBookDetailView(route) {
 
   const actions = document.createElement("div");
   actions.className = "detail-actions";
+  actions.appendChild(buildOwnershipSlot(book));
+  actions.appendChild(buildSampleAction(book));
   actions.appendChild(createFavoriteButton(book, "favorite-inline"));
 
   info.appendChild(category);
@@ -1673,7 +1832,7 @@ function buildBookDetailView(route) {
   } else {
     const note = document.createElement("p");
     note.className = "detail-note";
-    note.textContent = "نمونهٔ متنی این کتاب هنوز اضافه نشده است.";
+    note.textContent = "نمونه این کتاب موجود نیست.";
     info.appendChild(note);
   }
 
@@ -1682,6 +1841,13 @@ function buildBookDetailView(route) {
 
   page.appendChild(back);
   page.appendChild(layout);
+
+  const related = createRelatedSection(book);
+
+  if (related) {
+    page.appendChild(related);
+  }
+
   return page;
 }
 
@@ -1817,6 +1983,58 @@ function buildReaderView(route) {
   return page;
 }
 
+function buildBookNotFoundView() {
+  const page = document.createElement("section");
+  page.className = "page";
+
+  const head = document.createElement("div");
+  head.className = "page-head";
+
+  const heading = document.createElement("h1");
+  heading.textContent = "کتاب یافت نشد";
+
+  const lead = document.createElement("p");
+  lead.className = "page-lead";
+  lead.textContent =
+    "کتابی با این شناسه در کتابخانه پیدا نشد. ممکن است نشانی اشتباه باشد یا این کتاب دیگر در دسترس نباشد.";
+
+  head.appendChild(heading);
+  head.appendChild(lead);
+  page.appendChild(head);
+
+  const box = document.createElement("div");
+  box.className = "empty-state";
+
+  const boxTitle = document.createElement("h2");
+  boxTitle.textContent = "این کتاب در دسترس نیست";
+
+  const boxText = document.createElement("p");
+  boxText.textContent =
+    "می‌توانید از فهرست کتاب‌ها یا صفحهٔ اصلی ادامه دهید و کتاب دیگری انتخاب کنید.";
+
+  const actions = document.createElement("div");
+  actions.className = "empty-state-actions";
+
+  const toCatalog = document.createElement("a");
+  toCatalog.className = "btn btn-primary";
+  toCatalog.href = "#catalog";
+  toCatalog.textContent = "بازگشت به فهرست کتاب‌ها";
+
+  const toHome = document.createElement("a");
+  toHome.className = "btn btn-secondary";
+  toHome.href = "#home";
+  toHome.textContent = "بازگشت به خانه";
+
+  actions.appendChild(toCatalog);
+  actions.appendChild(toHome);
+
+  box.appendChild(boxTitle);
+  box.appendChild(boxText);
+  box.appendChild(actions);
+  page.appendChild(box);
+  return page;
+}
+
 function buildNotFoundView() {
   const page = document.createElement("section");
   page.className = "page";
@@ -1928,6 +2146,7 @@ subscribe(() => {
   syncThemeControl();
   syncHeader();
   syncFavoriteButtons();
+  syncDetailOwnership();
   syncStats();
 });
 
