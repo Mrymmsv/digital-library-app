@@ -24,8 +24,10 @@
   --radius-md: 14px;
   --radius-lg: 22px;
 
-  --shadow-soft: 0 1px 2px rgba(20, 56, 53, 0.05), 0 8px 24px rgba(20, 56, 53, 0.06);
-  --shadow-card: 0 2px 6px rgba(20, 56, 53, 0.06), 0 14px 30px rgba(20, 56, 53, 0.1);
+  --shadow-soft:
+    0 1px 2px rgba(20, 56, 53, 0.05), 0 8px 24px rgba(20, 56, 53, 0.06);
+  --shadow-card:
+    0 2px 6px rgba(20, 56, 53, 0.06), 0 14px 30px rgba(20, 56, 53, 0.1);
 
   --font-body: "Vazirmatn", "IRANSans", Tahoma, "Segoe UI", sans-serif;
   --container: 1200px;
@@ -75,7 +77,9 @@ body {
   font-family: var(--font-body);
   font-size: 16px;
   line-height: 1.7;
-  transition: background-color 0.25s ease, color 0.25s ease;
+  transition:
+    background-color 0.25s ease,
+    color 0.25s ease;
 }
 
 h1,
@@ -151,8 +155,11 @@ button {
   font-weight: 600;
   line-height: 1.5;
   cursor: pointer;
-  transition: background-color 0.2s ease, color 0.2s ease,
-    border-color 0.2s ease, transform 0.15s ease;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.15s ease;
 }
 
 .btn:active {
@@ -332,7 +339,9 @@ button {
   font-size: 12.5px;
   line-height: 1.4;
   cursor: pointer;
-  transition: color 0.2s ease, border-color 0.2s ease,
+  transition:
+    color 0.2s ease,
+    border-color 0.2s ease,
     background-color 0.2s ease;
 }
 
@@ -374,7 +383,9 @@ button {
   font-size: 14px;
   color: var(--color-muted);
   border-bottom: 2px solid transparent;
-  transition: color 0.2s ease, border-color 0.2s ease;
+  transition:
+    color 0.2s ease,
+    border-color 0.2s ease;
 }
 
 .nav-link:hover,
@@ -408,7 +419,12 @@ button {
   gap: clamp(18px, 3vw, 36px);
   padding: clamp(26px, 5vw, 52px);
   border-radius: var(--radius-lg);
-  background: linear-gradient(135deg, var(--color-primary) 0%, #0a9491 55%, #0faaa6 100%);
+  background: linear-gradient(
+    135deg,
+    var(--color-primary) 0%,
+    #0a9491 55%,
+    #0faaa6 100%
+  );
   color: #ffffff;
   overflow: hidden;
 }
@@ -613,7 +629,9 @@ button {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-soft);
-  transition: transform 0.2s ease, border-color 0.2s ease,
+  transition:
+    transform 0.2s ease,
+    border-color 0.2s ease,
     box-shadow 0.2s ease;
 }
 
@@ -697,7 +715,9 @@ button {
   font-size: 12.5px;
   line-height: 1.4;
   cursor: pointer;
-  transition: color 0.2s ease, border-color 0.2s ease,
+  transition:
+    color 0.2s ease,
+    border-color 0.2s ease,
     background-color 0.2s ease;
 }
 
@@ -749,7 +769,9 @@ button {
   border-radius: var(--radius-md);
   overflow: hidden;
   box-shadow: var(--shadow-soft);
-  transition: transform 0.22s ease, box-shadow 0.22s ease,
+  transition:
+    transform 0.22s ease,
+    box-shadow 0.22s ease,
     border-color 0.22s ease;
 }
 
@@ -818,7 +840,9 @@ button {
   line-height: 1;
   cursor: pointer;
   box-shadow: 0 2px 8px rgba(16, 45, 43, 0.18);
-  transition: transform 0.15s ease, color 0.2s ease,
+  transition:
+    transform 0.15s ease,
+    color 0.2s ease,
     border-color 0.2s ease;
 }
 
@@ -1137,7 +1161,9 @@ button {
   color: var(--color-primary-dark);
   font-size: 12px;
   font-weight: 600;
-  transition: background-color 0.2s ease, border-color 0.2s ease;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease;
 }
 
 .detail-category:hover,
@@ -1440,5 +1466,246 @@ button {
 @media (min-width: 900px) {
   .book-grid {
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  }
+}
+
+/* ==========================================================================
+   Utility
+   ========================================================================== */
+[hidden] {
+  display: none !important;
+}
+
+/* ==========================================================================
+   Library — two sections
+   ========================================================================== */
+.library-sections {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(24px, 4vw, 40px);
+}
+
+.library-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.library-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-bottom: 4px;
+}
+
+.library-section-head h2 {
+  font-size: clamp(18px, 2.2vw, 22px);
+}
+
+.library-section-count {
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.library-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 12px 12px;
+}
+
+/* ==========================================================================
+   Login form
+   ========================================================================== */
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-field label {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.form-field input {
+  padding: 10px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.form-field input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-soft);
+}
+
+.form-field input[aria-invalid="true"] {
+  border-color: var(--color-heart);
+}
+
+.field-error {
+  display: none;
+  font-size: 12.5px;
+  color: var(--color-heart);
+  min-height: 1.2em;
+}
+
+.field-error[aria-live] {
+  display: block;
+}
+
+.login-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.login-actions .btn {
+  flex: 1 1 auto;
+  min-width: 140px;
+}
+
+.login-notice {
+  font-size: 13px;
+  color: var(--color-muted);
+  text-align: center;
+  padding: 12px;
+  background-color: var(--color-primary-soft);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-primary-border);
+}
+
+/* ==========================================================================
+   Purchase confirmation dialog
+   ========================================================================== */
+.purchase-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.purchase-dialog[hidden] {
+  display: none !important;
+}
+
+.purchase-dialog-backdrop {
+  position: absolute;
+  inset: 0;
+  background-color: rgba(10, 20, 18, 0.6);
+  backdrop-filter: blur(2px);
+}
+
+.purchase-dialog-content {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 420px;
+  padding: clamp(20px, 3vw, 28px);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  text-align: center;
+}
+
+.purchase-dialog-content h2 {
+  margin-bottom: 10px;
+  font-size: clamp(18px, 2.2vw, 22px);
+}
+
+.purchase-dialog-content p {
+  margin-bottom: 20px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--color-text);
+}
+
+#purchase-book-title {
+  font-weight: 700;
+  color: var(--color-primary-dark);
+}
+
+#purchase-book-price {
+  font-weight: 700;
+  color: var(--color-primary-dark);
+}
+
+.purchase-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+.purchase-dialog-actions .btn {
+  min-width: 120px;
+}
+
+/* Body scroll lock when dialog open */
+body.dialog-open {
+  overflow: hidden;
+}
+
+/* ==========================================================================
+   Header logout button
+   ========================================================================== */
+.logout-btn {
+  background-color: transparent;
+  color: var(--color-muted);
+  border-color: var(--color-border);
+}
+
+.logout-btn:hover {
+  color: var(--color-heart);
+  border-color: var(--color-heart);
+}
+
+/* ==========================================================================
+   Responsive adjustments for new components
+   ========================================================================== */
+@media (max-width: 560px) {
+  .purchase-dialog {
+    padding: 16px;
+    align-items: flex-end;
+  }
+
+  .purchase-dialog-content {
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    max-width: none;
+  }
+
+  .login-actions .btn {
+    width: 100%;
+  }
+
+  .library-card-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 0 12px 12px;
   }
 }

@@ -37,6 +37,139 @@ const ratingFormatter = new Intl.NumberFormat("fa-IR", {
 });
 
 /* ==========================================================================
+   Step 6: Helpers for login validation, purchase dialog, returnTo
+   ========================================================================== */
+
+const PERSIAN_DIGITS = "۰۱۲۳۴۵۶۷۸۹";
+const ARABIC_DIGITS = "٠١٢٣٤٥٦٧٨٩";
+const LATIN_DIGITS = "0123456789";
+
+function convertPersianArabicDigits(value) {
+  if (typeof value !== "string") {
+    return "";
+  }
+  return value
+    .split("")
+    .map((ch) => {
+      const persianIndex = PERSIAN_DIGITS.indexOf(ch);
+      if (persianIndex !== -1) {
+        return LATIN_DIGITS[persianIndex];
+      }
+      const arabicIndex = ARABIC_DIGITS.indexOf(ch);
+      if (arabicIndex !== -1) {
+        return LATIN_DIGITS[arabicIndex];
+      }
+      return ch;
+    })
+    .join("");
+}
+
+function isValidPhone(phone) {
+  return /^09\d{9}$/.test(phone);
+}
+
+function isValidReturnTo(value) {
+  if (typeof value !== "string") {
+    return false;
+  }
+  // Only allow internal hash routes: #home, #categories, #catalog, #library, #book/..., #reader/..., #login
+  return /^#(home|categories|catalog|library|book\/|reader\/|login)([?#].*)?$/.test(value);
+}
+
+let purchaseDialogResolve = null;
+let purchaseDialogTrigger = null;
+
+function showPurchaseDialog(book) {
+  return new Promise((resolve) => {
+    purchaseDialogResolve = resolve;
+    const dialog = document.getElementById("purchase-dialog");
+    const titleEl = document.getElementById("purchase-book-title");
+    const priceEl = document.getElementById("purchase-book-price");
+
+    if (titleEl) {
+      titleEl.textContent = book.title;
+    }
+    if (priceEl) {
+      priceEl.textContent = formatPrice(book.price);
+    }
+
+    // Store the element that triggered the dialog to return focus
+    purchaseDialogTrigger = document.activeElement;
+
+    dialog.hidden = false;
+    document.body.classList.add("dialog-open");
+
+    // Focus the confirm button
+    const confirmBtn = document.getElementById("purchase-confirm");
+    if (confirmBtn) {
+      confirmBtn.focus();
+    }
+
+    // Trap focus
+    dialog.addEventListener("keydown", handleDialogKeydown);
+    dialog.querySelector(".purchase-dialog-backdrop").addEventListener("click", handleDialogBackdropClick);
+  });
+}
+
+function closePurchaseDialog(confirmed) {
+  const dialog = document.getElementById("purchase-dialog");
+  dialog.hidden = true;
+  document.body.classList.remove("dialog-open");
+
+  dialog.removeEventListener("keydown", handleDialogKeydown);
+  dialog.querySelector(".purchase-dialog-backdrop").removeEventListener("click", handleDialogBackdropClick);
+
+  // Return focus to trigger element
+  if (purchaseDialogTrigger && typeof purchaseDialogTrigger.focus === "function") {
+    purchaseDialogTrigger.focus();
+  }
+  purchaseDialogTrigger = null;
+
+  if (purchaseDialogResolve) {
+    purchaseDialogResolve(confirmed);
+    purchaseDialogResolve = null;
+  }
+}
+
+function handleDialogKeydown(event) {
+  if (event.key === "Escape") {
+    event.preventDefault();
+    closePurchaseDialog(false);
+    return;
+  }
+
+  // Tab trapping
+  if (event.key === "Tab") {
+    const dialog = document.getElementById("purchase-dialog");
+    const focusable = dialog.querySelectorAll(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+}
+
+function handleDialogBackdropClick() {
+  closePurchaseDialog(false);
+}
+
+function handlePurchaseConfirm() {
+  closePurchaseDialog(true);
+}
+
+function handlePurchaseCancel() {
+  closePurchaseDialog(false);
+}
+
+/* ==========================================================================
    State schema + sanitizers
    ========================================================================== */
 
@@ -213,8 +346,30 @@ function addOwnedBook(bookId) {
  * Step 6 hook: login and purchase confirmation belong here, so the detail view
  * never needs to know how a book reaches the library.
  */
-function requestAcquire(book) {
-  return addOwnedBook(book.id);
+async function requestAcquire(book) {
+  // Auth gate
+  if (!state.user) {
+    const returnTo = `#book/${encodeURIComponent(book.id)}`;
+    navigate(`#login?returnTo=${encodeURIComponent(returnTo)}`);
+    return false;
+  }
+
+  // Already owned
+  if (state.ownedBooks.includes(book.id)) {
+    return false;
+  }
+
+  // Free book: direct acquisition
+  if (book.price === 0) {
+    return addOwnedBook(book.id);
+  }
+
+  // Paid book: show confirmation dialog
+  const confirmed = await showPurchaseDialog(book);
+  if (confirmed) {
+    return addOwnedBook(book.id);
+  }
+  return false;
 }
 
 function setTheme(theme) {
@@ -296,7 +451,8 @@ function parseRoute() {
   }
 
   if (path === "login") {
-    return { name: "login", params };
+    const returnTo = params.get("returnTo") || "";
+    return { name: "login", params, returnTo };
   }
 
   if (path === "book" || path.startsWith("book/")) {
@@ -415,6 +571,11 @@ function renderRoute(options) {
     return;
   }
 
+  // Close purchase dialog on route change
+  if (!document.getElementById("purchase-dialog")?.hidden) {
+    closePurchaseDialog(false);
+  }
+
   const container = document.createElement("div");
   container.className = "container";
   container.appendChild(buildView(route));
@@ -429,6 +590,7 @@ function renderRoute(options) {
   syncHeader();
   syncFavoriteButtons();
   syncDetailOwnership();
+  syncLibraryView();
 
   if (options && options.focus) {
     main.focus({ preventScroll: true });
@@ -489,6 +651,33 @@ function syncHeader() {
       "aria-label",
       state.user ? `حساب کاربری ${state.user.name}` : "ورود یا حساب کاربری"
     );
+  }
+
+  // Logout button in header actions
+  const headerActions = document.querySelector(".header-actions");
+  let logoutBtn = document.getElementById("logout-btn");
+
+  if (state.user) {
+    if (!logoutBtn && headerActions) {
+      logoutBtn = document.createElement("button");
+      logoutBtn.type = "button";
+      logoutBtn.id = "logout-btn";
+      logoutBtn.className = "action-btn logout-btn";
+      logoutBtn.textContent = "خروج";
+      logoutBtn.setAttribute("aria-label", `خروج از حساب کاربری ${state.user.name}`);
+      logoutBtn.addEventListener("click", handleLogout);
+      // Insert before theme toggle
+      const themeToggle = document.getElementById("theme-toggle");
+      if (themeToggle) {
+        headerActions.insertBefore(logoutBtn, themeToggle);
+      } else {
+        headerActions.appendChild(logoutBtn);
+      }
+    } else if (logoutBtn) {
+      logoutBtn.hidden = false;
+    }
+  } else if (logoutBtn) {
+    logoutBtn.hidden = true;
   }
 }
 
@@ -1646,9 +1835,11 @@ function buildOwnershipAction(book) {
     book.price === 0
       ? "دریافت رایگان"
       : `خرید نسخهٔ الکترونیکی — ${formatPrice(book.price)}`;
-  button.addEventListener("click", () => {
-    requestAcquire(book);
-    focusOwnershipAction();
+  button.addEventListener("click", async () => {
+    const acquired = await requestAcquire(book);
+    if (acquired) {
+      focusOwnershipAction();
+    }
   });
   return button;
 }
@@ -1856,12 +2047,16 @@ function buildBookDetailView(route) {
    ========================================================================== */
 
 function buildLibraryView() {
-  const books = state.ownedBooks
+  const ownedBooks = state.ownedBooks
+    .map((id) => BOOK_BY_ID.get(id))
+    .filter(Boolean);
+  const favoriteBooks = state.favorites
     .map((id) => BOOK_BY_ID.get(id))
     .filter(Boolean);
 
   const page = document.createElement("section");
   page.className = "page";
+  page.id = "library-view";
 
   const head = document.createElement("div");
   head.className = "page-head";
@@ -1871,29 +2066,278 @@ function buildLibraryView() {
 
   const lead = document.createElement("p");
   lead.className = "page-lead";
-  lead.textContent = `${formatCount(books.length)} کتاب در کتابخانهٔ شما.`;
+  lead.textContent = `${formatCount(ownedBooks.length)} کتاب دریافت‌شده، ${formatCount(favoriteBooks.length)} علاقه‌مندی.`;
 
   head.appendChild(heading);
   head.appendChild(lead);
   page.appendChild(head);
 
-  if (books.length === 0) {
-    page.appendChild(
+  const sectionsWrapper = document.createElement("div");
+  sectionsWrapper.className = "library-sections";
+
+  // Section 1: Owned Books
+  const ownedSection = document.createElement("section");
+  ownedSection.className = "library-section";
+  ownedSection.setAttribute("aria-labelledby", "library-owned-title");
+
+  const ownedHead = document.createElement("div");
+  ownedHead.className = "library-section-head";
+
+  const ownedTitle = document.createElement("h2");
+  ownedTitle.id = "library-owned-title";
+  ownedTitle.textContent = "کتاب‌های دریافت‌شده";
+
+  const ownedCount = document.createElement("span");
+  ownedCount.className = "library-section-count";
+  ownedCount.textContent = `${formatCount(ownedBooks.length)} کتاب`;
+
+  ownedHead.appendChild(ownedTitle);
+  ownedHead.appendChild(ownedCount);
+  ownedSection.appendChild(ownedHead);
+
+  if (ownedBooks.length === 0) {
+    ownedSection.appendChild(
       createEmptyState(
-        "کتابخانهٔ شما خالی است",
-        "هنوز کتابی به کتابخانه اضافه نکرده‌اید. از فهرست کتاب‌ها شروع کنید و کتاب‌های دلخواهتان را نگه دارید.",
-        "#catalog",
-        "مرور فهرست کتاب‌ها"
+        "هنوز کتابی دریافت نکرده‌اید",
+        "کتاب‌های رایگان را ببینید یا کتاب‌های پولی را خریداری کنید تا اینجا نمایش داده شوند.",
+        "#catalog?free=1",
+        "مشاهده کتاب‌های رایگان"
       )
     );
   } else {
-    page.appendChild(createBookGrid(books));
+    const ownedGrid = document.createElement("div");
+    ownedGrid.className = "book-grid";
+    for (const book of ownedBooks) {
+      ownedGrid.appendChild(createLibraryBookCard(book, true));
+    }
+    ownedSection.appendChild(ownedGrid);
   }
+
+  // Section 2: Favorites
+  const favoritesSection = document.createElement("section");
+  favoritesSection.className = "library-section";
+  favoritesSection.setAttribute("aria-labelledby", "library-favorites-title");
+
+  const favoritesHead = document.createElement("div");
+  favoritesHead.className = "library-section-head";
+
+  const favoritesTitle = document.createElement("h2");
+  favoritesTitle.id = "library-favorites-title";
+  favoritesTitle.textContent = "علاقه‌مندی‌ها";
+
+  const favoritesCount = document.createElement("span");
+  favoritesCount.className = "library-section-count";
+  favoritesCount.textContent = `${formatCount(favoriteBooks.length)} کتاب`;
+
+  favoritesHead.appendChild(favoritesTitle);
+  favoritesHead.appendChild(favoritesCount);
+  favoritesSection.appendChild(favoritesHead);
+
+  if (favoriteBooks.length === 0) {
+    favoritesSection.appendChild(
+      createEmptyState(
+        "هنوز علاقه‌مندی ندارید",
+        "کتاب‌هایی که دوست دارید را با کلیک روی آیکن قلب در کارت‌های کتاب یا صفحه جزئیات ذخیره کنید.",
+        "#catalog",
+        "مرور کتاب‌ها"
+      )
+    );
+  } else {
+    const favoritesGrid = document.createElement("div");
+    favoritesGrid.className = "book-grid";
+    for (const book of favoriteBooks) {
+      favoritesGrid.appendChild(createLibraryBookCard(book, false));
+    }
+    favoritesSection.appendChild(favoritesGrid);
+  }
+
+  sectionsWrapper.appendChild(ownedSection);
+  sectionsWrapper.appendChild(favoritesSection);
+  page.appendChild(sectionsWrapper);
 
   return page;
 }
 
-function buildLoginView() {
+function createLibraryBookCard(book, isOwnedSection) {
+  const card = document.createElement("article");
+  card.className = "book-card";
+  card.dataset.id = book.id;
+
+  const link = document.createElement("a");
+  link.className = "book-card-link";
+  link.href = `#book/${encodeURIComponent(book.id)}`;
+
+  const coverWrap = document.createElement("div");
+  coverWrap.className = "book-cover";
+
+  const image = document.createElement("img");
+  image.src = book.cover;
+  image.alt = `جلد کتاب ${book.title} اثر ${book.author}`;
+  image.width = 400;
+  image.height = 600;
+  image.loading = "lazy";
+  image.decoding = "async";
+  coverWrap.appendChild(image);
+
+  if (book.price === 0) {
+    const badge = document.createElement("span");
+    badge.className = "badge-free";
+    badge.textContent = "رایگان";
+    coverWrap.appendChild(badge);
+  }
+
+  const body = document.createElement("div");
+  body.className = "book-body";
+
+  const category = document.createElement("span");
+  category.className = "book-category";
+  category.textContent = book.category;
+
+  const title = document.createElement("h3");
+  title.className = "book-title";
+  title.textContent = book.title;
+
+  const author = document.createElement("p");
+  author.className = "book-author";
+  author.textContent = book.author;
+
+  const price = document.createElement("p");
+  price.className = "book-price";
+  if (book.price === 0) {
+    price.classList.add("is-free");
+  }
+  price.textContent = formatPrice(book.price);
+
+  body.appendChild(category);
+  body.appendChild(title);
+  body.appendChild(author);
+  body.appendChild(createRating(book));
+  body.appendChild(price);
+
+  link.appendChild(coverWrap);
+  link.appendChild(body);
+
+  link.addEventListener("keydown", (event) => {
+    if (event.key === " " || event.key === "Spacebar") {
+      event.preventDefault();
+      link.click();
+    }
+  });
+
+  card.appendChild(link);
+
+  // Actions wrapper outside the link to avoid nested interactive elements
+  const actions = document.createElement("div");
+  actions.className = "library-card-actions";
+
+  // Favorite button (both sections)
+  actions.appendChild(createFavoriteButton(book, "favorite-inline"));
+
+  // Sample link only in owned section
+  if (isOwnedSection && book.sampleParagraphs.length > 0) {
+    const sampleLink = document.createElement("a");
+    sampleLink.className = "btn btn-secondary";
+    sampleLink.href = `#reader/${encodeURIComponent(book.id)}`;
+    sampleLink.textContent = "مطالعهٔ نمونه";
+    actions.appendChild(sampleLink);
+  }
+
+  card.appendChild(actions);
+
+  return card;
+}
+
+function syncLibraryView() {
+  const libraryView = document.getElementById("library-view");
+  if (!libraryView) {
+    return;
+  }
+
+  const route = parseRoute();
+  if (route.name !== "library") {
+    return;
+  }
+
+  const ownedBooks = state.ownedBooks
+    .map((id) => BOOK_BY_ID.get(id))
+    .filter(Boolean);
+  const favoriteBooks = state.favorites
+    .map((id) => BOOK_BY_ID.get(id))
+    .filter(Boolean);
+
+  // Update lead text
+  const lead = libraryView.querySelector(".page-lead");
+  if (lead) {
+    lead.textContent = `${formatCount(ownedBooks.length)} کتاب دریافت‌شده، ${formatCount(favoriteBooks.length)} علاقه‌مندی.`;
+  }
+
+  // Update owned section
+  const ownedSection = libraryView.querySelector("#library-owned-title")?.closest(".library-section");
+  if (ownedSection) {
+    const countEl = ownedSection.querySelector(".library-section-count");
+    if (countEl) {
+      countEl.textContent = `${formatCount(ownedBooks.length)} کتاب`;
+    }
+
+    // Replace content after head
+    const existingGrid = ownedSection.querySelector(".book-grid");
+    const existingEmpty = ownedSection.querySelector(".empty-state");
+    if (existingGrid) existingGrid.remove();
+    if (existingEmpty) existingEmpty.remove();
+
+    if (ownedBooks.length === 0) {
+      ownedSection.appendChild(
+        createEmptyState(
+          "هنوز کتابی دریافت نکرده‌اید",
+          "کتاب‌های رایگان را ببینید یا کتاب‌های پولی را خریداری کنید تا اینجا نمایش داده شوند.",
+          "#catalog?free=1",
+          "مشاهده کتاب‌های رایگان"
+        )
+      );
+    } else {
+      const ownedGrid = document.createElement("div");
+      ownedGrid.className = "book-grid";
+      for (const book of ownedBooks) {
+        ownedGrid.appendChild(createLibraryBookCard(book, true));
+      }
+      ownedSection.appendChild(ownedGrid);
+    }
+  }
+
+  // Update favorites section
+  const favoritesSection = libraryView.querySelector("#library-favorites-title")?.closest(".library-section");
+  if (favoritesSection) {
+    const countEl = favoritesSection.querySelector(".library-section-count");
+    if (countEl) {
+      countEl.textContent = `${formatCount(favoriteBooks.length)} کتاب`;
+    }
+
+    const existingGrid = favoritesSection.querySelector(".book-grid");
+    const existingEmpty = favoritesSection.querySelector(".empty-state");
+    if (existingGrid) existingGrid.remove();
+    if (existingEmpty) existingEmpty.remove();
+
+    if (favoriteBooks.length === 0) {
+      favoritesSection.appendChild(
+        createEmptyState(
+          "هنوز علاقه‌مندی ندارید",
+          "کتاب‌هایی که دوست دارید را با کلیک روی آیکن قلب در کارت‌های کتاب یا صفحه جزئیات ذخیره کنید.",
+          "#catalog",
+          "مرور کتاب‌ها"
+        )
+      );
+    } else {
+      const favoritesGrid = document.createElement("div");
+      favoritesGrid.className = "book-grid";
+      for (const book of favoriteBooks) {
+        favoritesGrid.appendChild(createLibraryBookCard(book, false));
+      }
+      favoritesSection.appendChild(favoritesGrid);
+    }
+  }
+}
+
+function buildLoginView(route) {
   const page = document.createElement("section");
   page.className = "page";
 
@@ -1901,11 +2345,13 @@ function buildLoginView() {
   head.className = "page-head";
 
   const heading = document.createElement("h1");
-  heading.textContent = "ورود / حساب کاربری";
+  heading.textContent = state.user ? "حساب کاربری" : "ورود / حساب کاربری";
 
   const lead = document.createElement("p");
   lead.className = "page-lead";
-  lead.textContent = "حساب نمایشی برای نگه‌داشتن کتاب‌ها و علاقه‌مندی‌ها.";
+  lead.textContent = state.user
+    ? "اطلاعات حساب و کتابخانهٔ شما."
+    : "حساب نمایشی برای نگه‌داشتن کتاب‌ها و علاقه‌مندی‌ها.";
 
   head.appendChild(heading);
   head.appendChild(lead);
@@ -1926,32 +2372,189 @@ function buildLoginView() {
     const note = document.createElement("p");
     note.className = "account-note";
     note.textContent =
-      "شما با حساب نمایشی وارد شده‌اید. کتابخانه و علاقه‌مندی‌ها روی همین مرورگر ذخیره می‌شوند.";
+      "شما با حساب نمایشی وارد شده‌ید. کتابخانه و علاقه‌مندی‌ها روی همین مرورگر ذخیره می‌شوند.";
+
+    const logoutBtn = document.createElement("button");
+    logoutBtn.type = "button";
+    logoutBtn.className = "btn btn-secondary";
+    logoutBtn.textContent = "خروج از حساب";
+    logoutBtn.addEventListener("click", handleLogout);
 
     card.appendChild(name);
     card.appendChild(phone);
     card.appendChild(note);
+    card.appendChild(logoutBtn);
   } else {
-    const title = document.createElement("h2");
-    title.textContent = "هنوز وارد نشده‌اید";
+    // Login form
+    const form = document.createElement("form");
+    form.className = "login-form";
+    form.id = "login-form";
+    form.setAttribute("novalidate", "");
 
-    const note = document.createElement("p");
-    note.className = "account-note";
-    note.textContent =
-      "این نسخهٔ نمایشی ورود واقعی ندارد؛ اما ساختار حساب کاربری و کتابخانهٔ شخصی آماده است. می‌توانید کتاب‌ها را مرور کنید و علاقه‌مندی‌هایتان را ذخیره کنید.";
+    // Return-to hidden input
+    const returnToInput = document.createElement("input");
+    returnToInput.type = "hidden";
+    returnToInput.name = "returnTo";
+    returnToInput.value = route.returnTo || "";
+    form.appendChild(returnToInput);
 
-    const link = document.createElement("a");
-    link.className = "btn btn-primary";
-    link.href = "#catalog";
-    link.textContent = "مرور کتاب‌ها";
+    // Name field
+    const nameField = document.createElement("div");
+    nameField.className = "form-field";
 
-    card.appendChild(title);
-    card.appendChild(note);
-    card.appendChild(link);
+    const nameLabel = document.createElement("label");
+    nameLabel.htmlFor = "login-name";
+    nameLabel.textContent = "نام نمایشی";
+
+    const nameInput = document.createElement("input");
+    nameInput.type = "text";
+    nameInput.id = "login-name";
+    nameInput.name = "name";
+    nameInput.autocomplete = "name";
+    nameInput.required = true;
+    nameInput.setAttribute("aria-describedby", "login-name-error");
+    nameInput.setAttribute("aria-invalid", "false");
+
+    const nameError = document.createElement("span");
+    nameError.id = "login-name-error";
+    nameError.className = "field-error";
+    nameError.setAttribute("aria-live", "polite");
+
+    nameField.appendChild(nameLabel);
+    nameField.appendChild(nameInput);
+    nameField.appendChild(nameError);
+    form.appendChild(nameField);
+
+    // Phone field
+    const phoneField = document.createElement("div");
+    phoneField.className = "form-field";
+
+    const phoneLabel = document.createElement("label");
+    phoneLabel.htmlFor = "login-phone";
+    phoneLabel.textContent = "شماره موبایل";
+
+    const phoneInput = document.createElement("input");
+    phoneInput.type = "tel";
+    phoneInput.id = "login-phone";
+    phoneInput.name = "phone";
+    phoneInput.autocomplete = "tel";
+    phoneInput.required = true;
+    phoneInput.placeholder = "۰۹۱۲۳۴۵۶۷۸۹";
+    phoneInput.setAttribute("aria-describedby", "login-phone-error");
+    phoneInput.setAttribute("aria-invalid", "false");
+
+    const phoneError = document.createElement("span");
+    phoneError.id = "login-phone-error";
+    phoneError.className = "field-error";
+    phoneError.setAttribute("aria-live", "polite");
+
+    phoneField.appendChild(phoneLabel);
+    phoneField.appendChild(phoneInput);
+    phoneField.appendChild(phoneError);
+    form.appendChild(phoneField);
+
+    // Notice
+    const notice = document.createElement("p");
+    notice.className = "login-notice";
+    notice.textContent = "این نسخه نمایشی است؛ رمز عبور نیاز نیست. نام و موبایل معتبر وارد کنید.";
+    form.appendChild(notice);
+
+    // Actions
+    const actions = document.createElement("div");
+    actions.className = "login-actions";
+
+    const submitBtn = document.createElement("button");
+    submitBtn.type = "submit";
+    submitBtn.className = "btn btn-primary";
+    submitBtn.textContent = "ورود";
+
+    const cancelBtn = document.createElement("button");
+    cancelBtn.type = "button";
+    cancelBtn.className = "btn btn-secondary";
+    cancelBtn.textContent = "انصراف";
+    cancelBtn.addEventListener("click", () => {
+      navigate("#home");
+    });
+
+    actions.appendChild(cancelBtn);
+    actions.appendChild(submitBtn);
+    form.appendChild(actions);
+
+    form.addEventListener("submit", handleLogin);
+
+    card.appendChild(form);
   }
 
   page.appendChild(card);
   return page;
+}
+
+function handleLogin(event) {
+  event.preventDefault();
+
+  const form = event.target;
+  const formData = new FormData(form);
+
+  const rawName = formData.get("name") || "";
+  const rawPhone = formData.get("phone") || "";
+  const returnTo = formData.get("returnTo") || "";
+
+  const nameInput = form.querySelector("#login-name");
+  const phoneInput = form.querySelector("#login-phone");
+  const nameError = form.querySelector("#login-name-error");
+  const phoneError = form.querySelector("#login-phone-error");
+
+  // Reset errors
+  nameInput.setAttribute("aria-invalid", "false");
+  phoneInput.setAttribute("aria-invalid", "false");
+  nameError.textContent = "";
+  phoneError.textContent = "";
+
+  let hasError = false;
+
+  // Validate name
+  const name = rawName.trim();
+  if (!name) {
+    nameInput.setAttribute("aria-invalid", "true");
+    nameError.textContent = "نام نمایشی الزامی است";
+    hasError = true;
+  }
+
+  // Validate phone
+  const normalizedPhone = convertPersianArabicDigits(rawPhone).trim();
+  if (!normalizedPhone) {
+    phoneInput.setAttribute("aria-invalid", "true");
+    phoneError.textContent = "شماره موبایل الزامی است";
+    hasError = true;
+  } else if (!isValidPhone(normalizedPhone)) {
+    phoneInput.setAttribute("aria-invalid", "true");
+    phoneError.textContent = "شماره موبایل باید ۱۱ رقم و با ۰۹ آغاز شود";
+    hasError = true;
+  }
+
+  if (hasError) {
+    return;
+  }
+
+  // Success: set user state
+  const user = {
+    name: name.slice(0, 80),
+    phone: normalizedPhone.slice(0, 30)
+  };
+
+  setState({ ...state, user });
+
+  // Redirect
+  let target = "#library";
+  if (returnTo && isValidReturnTo(returnTo)) {
+    target = returnTo;
+  }
+  navigate(target);
+}
+
+function handleLogout() {
+  setState({ ...state, user: null });
+  navigate("#home");
 }
 
 function buildReaderView(route) {
@@ -2070,7 +2673,7 @@ function buildView(route) {
     case "library":
       return buildLibraryView();
     case "login":
-      return buildLoginView();
+      return buildLoginView(route);
     case "reader":
       return buildReaderView(route);
     default:
@@ -2139,6 +2742,75 @@ function initControls() {
       navigate(buildCatalogHash({ ...EMPTY_CATALOG_STATE, q: query }));
     });
   }
+
+  // Create purchase confirmation dialog
+  createPurchaseDialog();
+}
+
+function createPurchaseDialog() {
+  const dialog = document.createElement("div");
+  dialog.id = "purchase-dialog";
+  dialog.className = "purchase-dialog";
+  dialog.hidden = true;
+  dialog.setAttribute("role", "dialog");
+  dialog.setAttribute("aria-modal", "true");
+  dialog.setAttribute("aria-labelledby", "purchase-title");
+
+  const backdrop = document.createElement("div");
+  backdrop.className = "purchase-dialog-backdrop";
+  backdrop.tabIndex = -1;
+
+  const content = document.createElement("div");
+  content.className = "purchase-dialog-content";
+
+  const title = document.createElement("h2");
+  title.id = "purchase-title";
+  title.textContent = "تایید خرید";
+
+  const message = document.createElement("p");
+
+  const msgPart1 = document.createTextNode("آیا برای خرید کتاب «");
+  const bookTitleSpan = document.createElement("span");
+  bookTitleSpan.id = "purchase-book-title";
+  const msgPart2 = document.createTextNode("» با قیمت ");
+  const bookPriceSpan = document.createElement("span");
+  bookPriceSpan.id = "purchase-book-price";
+  const msgPart3 = document.createTextNode(" تأیید می‌کنید؟");
+
+  message.appendChild(msgPart1);
+  message.appendChild(bookTitleSpan);
+  message.appendChild(msgPart2);
+  message.appendChild(bookPriceSpan);
+  message.appendChild(msgPart3);
+
+  const actions = document.createElement("div");
+  actions.className = "purchase-dialog-actions";
+
+  const cancelBtn = document.createElement("button");
+  cancelBtn.type = "button";
+  cancelBtn.id = "purchase-cancel";
+  cancelBtn.className = "btn btn-secondary";
+  cancelBtn.textContent = "انصراف";
+  cancelBtn.addEventListener("click", handlePurchaseCancel);
+
+  const confirmBtn = document.createElement("button");
+  confirmBtn.type = "button";
+  confirmBtn.id = "purchase-confirm";
+  confirmBtn.className = "btn btn-primary";
+  confirmBtn.textContent = "تایید خرید";
+  confirmBtn.addEventListener("click", handlePurchaseConfirm);
+
+  actions.appendChild(cancelBtn);
+  actions.appendChild(confirmBtn);
+
+  content.appendChild(title);
+  content.appendChild(message);
+  content.appendChild(actions);
+
+  dialog.appendChild(backdrop);
+  dialog.appendChild(content);
+
+  document.body.appendChild(dialog);
 }
 
 subscribe(() => {
@@ -2148,6 +2820,7 @@ subscribe(() => {
   syncFavoriteButtons();
   syncDetailOwnership();
   syncStats();
+  syncLibraryView();
 });
 
 initControls();
