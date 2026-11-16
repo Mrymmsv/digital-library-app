@@ -383,6 +383,17 @@ function setTheme(theme) {
   });
 }
 
+function setFontSize(fontSize) {
+  if (!FONT_SIZES.includes(fontSize)) {
+    return;
+  }
+
+  setState({
+    ...state,
+    readingSettings: { ...state.readingSettings, fontSize }
+  });
+}
+
 function resetState() {
   clearStoredState();
   state = createDefaultState();
@@ -586,7 +597,9 @@ function renderRoute(options) {
   syncSearchField(route);
   syncStats();
   applyTheme();
+  applyFontSize();
   syncThemeControl();
+  syncReaderControls();
   syncHeader();
   syncFavoriteButtons();
   syncDetailOwnership();
@@ -610,6 +623,15 @@ function applyTheme() {
   );
 }
 
+function applyFontSize() {
+  const content = document.querySelector(".reader-content");
+  if (!content) {
+    return;
+  }
+  content.classList.remove("font-small", "font-medium", "font-large");
+  content.classList.add(`font-${state.readingSettings.fontSize}`);
+}
+
 function syncThemeControl() {
   const toggle = document.getElementById("theme-toggle");
   const icon = document.getElementById("theme-toggle-icon");
@@ -628,6 +650,21 @@ function syncThemeControl() {
   );
   icon.textContent = isDark ? "☀" : "☾";
   label.textContent = isDark ? "روشن" : "تیره";
+}
+
+function syncReaderControls() {
+  const fontButtons = document.querySelectorAll(".font-size-btn");
+  const themeButtons = document.querySelectorAll(".theme-btn");
+
+  for (const btn of fontButtons) {
+    const isActive = btn.dataset.size === state.readingSettings.fontSize;
+    btn.setAttribute("aria-pressed", String(isActive));
+  }
+
+  for (const btn of themeButtons) {
+    const isActive = btn.dataset.theme === state.readingSettings.theme;
+    btn.setAttribute("aria-pressed", String(isActive));
+  }
 }
 
 function syncHeader() {
@@ -2562,28 +2599,137 @@ function buildReaderView(route) {
   const page = document.createElement("section");
   page.className = "page";
 
+  // Back link at top
+  const topBack = document.createElement("a");
+  topBack.className = "back-link";
+  topBack.href = book ? `#book/${encodeURIComponent(book.id)}` : "#catalog";
+  topBack.textContent = book ? "← بازگشت به صفحهٔ کتاب" : "← بازگشت به فهرست کتاب‌ها";
+  page.appendChild(topBack);
+
+  if (!book) {
+    return page;
+  }
+
+  // Page head with title, author, category
   const head = document.createElement("div");
   head.className = "page-head";
 
   const heading = document.createElement("h1");
-  heading.textContent = book ? `خواندن نمونهٔ ${book.title}` : "خواندن نمونه";
+  heading.textContent = `خواندن نمونهٔ ${book.title}`;
 
   const lead = document.createElement("p");
   lead.className = "page-lead";
-  lead.textContent =
-    "نمونه‌خوان با تنظیمات اندازهٔ متن در مرحلهٔ بعدی تکمیل می‌شود.";
+  lead.textContent = `نویسنده: ${book.author} · دسته: ${book.category}`;
 
   head.appendChild(heading);
   head.appendChild(lead);
-
-  const back = document.createElement("a");
-  back.className = "back-link";
-  back.href = book ? `#book/${encodeURIComponent(book.id)}` : "#catalog";
-  back.textContent = book ? "← بازگشت به صفحهٔ کتاب" : "← بازگشت به فهرست کتاب‌ها";
-
-  page.appendChild(back);
   page.appendChild(head);
+
+  // Toolbar with font size and theme controls
+  const toolbar = createReaderToolbar(book);
+  page.appendChild(toolbar);
+
+  // Reader content
+  const readerContent = document.createElement("article");
+  readerContent.className = `reader-content font-${state.readingSettings.fontSize}`;
+  readerContent.setAttribute("aria-label", `متن نمونهٔ کتاب ${book.title}`);
+
+  if (book.sampleParagraphs.length === 0) {
+    // Empty sample fallback
+    const emptyState = document.createElement("div");
+    emptyState.className = "empty-state";
+
+    const emptyTitle = document.createElement("h2");
+    emptyTitle.textContent = "نمونه‌ای موجود نیست";
+
+    const emptyText = document.createElement("p");
+    emptyText.textContent = "نمونه‌ای برای این کتاب ثبت نشده است";
+
+    const backBtn = document.createElement("a");
+    backBtn.className = "btn btn-primary";
+    backBtn.href = `#book/${encodeURIComponent(book.id)}`;
+    backBtn.textContent = "بازگشت به صفحهٔ کتاب";
+
+    emptyState.appendChild(emptyTitle);
+    emptyState.appendChild(emptyText);
+    emptyState.appendChild(backBtn);
+    readerContent.appendChild(emptyState);
+  } else {
+    // Render all sample paragraphs
+    for (const paragraph of book.sampleParagraphs) {
+      const p = document.createElement("p");
+      p.textContent = paragraph;
+      readerContent.appendChild(p);
+    }
+  }
+
+  page.appendChild(readerContent);
+
+  // Back link at bottom
+  const bottomBack = document.createElement("a");
+  bottomBack.className = "back-link";
+  bottomBack.href = `#book/${encodeURIComponent(book.id)}`;
+  bottomBack.textContent = "← بازگشت به صفحهٔ کتاب";
+  page.appendChild(bottomBack);
+
   return page;
+}
+
+function createReaderToolbar(book) {
+  const toolbar = document.createElement("div");
+  toolbar.className = "reader-toolbar";
+  toolbar.setAttribute("role", "toolbar");
+  toolbar.setAttribute("aria-label", "تنظیمات خواندن");
+
+  // Font size group
+  const fontGroup = document.createElement("div");
+  fontGroup.className = "toolbar-group";
+  fontGroup.setAttribute("role", "group");
+  fontGroup.setAttribute("aria-label", "اندازهٔ متن");
+
+  const fontSizes = [
+    { value: "small", label: "کوچک" },
+    { value: "medium", label: "متوسط" },
+    { value: "large", label: "بزرگ" }
+  ];
+
+  for (const size of fontSizes) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "font-size-btn";
+    btn.dataset.size = size.value;
+    btn.textContent = size.label;
+    btn.setAttribute("aria-pressed", String(state.readingSettings.fontSize === size.value));
+    btn.addEventListener("click", () => setFontSize(size.value));
+    fontGroup.appendChild(btn);
+  }
+
+  // Theme group
+  const themeGroup = document.createElement("div");
+  themeGroup.className = "toolbar-group";
+  themeGroup.setAttribute("role", "group");
+  themeGroup.setAttribute("aria-label", "تم");
+
+  const themes = [
+    { value: "light", label: "روشن" },
+    { value: "dark", label: "تیره" }
+  ];
+
+  for (const theme of themes) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "theme-btn";
+    btn.dataset.theme = theme.value;
+    btn.textContent = theme.label;
+    btn.setAttribute("aria-pressed", String(state.readingSettings.theme === theme.value));
+    btn.addEventListener("click", () => setTheme(theme.value));
+    themeGroup.appendChild(btn);
+  }
+
+  toolbar.appendChild(fontGroup);
+  toolbar.appendChild(themeGroup);
+
+  return toolbar;
 }
 
 function buildBookNotFoundView() {
@@ -2815,7 +2961,9 @@ function createPurchaseDialog() {
 
 subscribe(() => {
   applyTheme();
+  applyFontSize();
   syncThemeControl();
+  syncReaderControls();
   syncHeader();
   syncFavoriteButtons();
   syncDetailOwnership();
