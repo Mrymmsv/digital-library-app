@@ -1,8 +1,3 @@
-/**
- * Hash-routed bookstore shell + safe persistence.
- * All DOM is built with document.createElement and textContent.
- */
-
 const STORAGE_KEY = "ketabkhaneh_state_v1";
 const FONT_SIZES = ["small", "medium", "large"];
 const THEMES = ["light", "dark"];
@@ -12,7 +7,7 @@ const VALID_BOOK_IDS = new Set(BOOK_BY_ID.keys());
 const COLLECTION_LABELS = {
   featured: "پیشنهادها",
   new: "تازه‌ها",
-  free: "کتاب‌های رایگان"
+  free: "کتاب‌های رایگان",
 };
 
 const CATALOG_SORTS = ["default", "price-asc", "price-desc", "rating-desc"];
@@ -20,25 +15,21 @@ const CATALOG_SORT_LABELS = {
   default: "پیش‌فرض",
   "price-asc": "ارزان‌ترین",
   "price-desc": "گران‌ترین",
-  "rating-desc": "بیشترین امتیاز"
+  "rating-desc": "بیشترین امتیاز",
 };
 const EMPTY_CATALOG_STATE = {
   q: "",
   category: "",
   freeOnly: false,
   collection: "",
-  sort: "default"
+  sort: "default",
 };
 
 const numberFormatter = new Intl.NumberFormat("fa-IR");
 const ratingFormatter = new Intl.NumberFormat("fa-IR", {
   minimumFractionDigits: 1,
-  maximumFractionDigits: 1
+  maximumFractionDigits: 1,
 });
-
-/* ==========================================================================
-   Step 6: Helpers for login validation, purchase dialog, returnTo
-   ========================================================================== */
 
 const PERSIAN_DIGITS = "۰۱۲۳۴۵۶۷۸۹";
 const ARABIC_DIGITS = "٠١٢٣٤٥٦٧٨٩";
@@ -72,8 +63,9 @@ function isValidReturnTo(value) {
   if (typeof value !== "string") {
     return false;
   }
-  // Only allow internal hash routes: #home, #categories, #catalog, #library, #book/..., #reader/..., #login
-  return /^#(home|categories|catalog|library|book\/|reader\/|login)([?#].*)?$/.test(value);
+  return /^#(home|categories|catalog|library|book\/|reader\/|login)([?#].*)?$/.test(
+    value,
+  );
 }
 
 let purchaseDialogResolve = null;
@@ -93,21 +85,20 @@ function showPurchaseDialog(book) {
       priceEl.textContent = formatPrice(book.price);
     }
 
-    // Store the element that triggered the dialog to return focus
     purchaseDialogTrigger = document.activeElement;
 
     dialog.hidden = false;
     document.body.classList.add("dialog-open");
 
-    // Focus the confirm button
     const confirmBtn = document.getElementById("purchase-confirm");
     if (confirmBtn) {
       confirmBtn.focus();
     }
 
-    // Trap focus
     dialog.addEventListener("keydown", handleDialogKeydown);
-    dialog.querySelector(".purchase-dialog-backdrop").addEventListener("click", handleDialogBackdropClick);
+    dialog
+      .querySelector(".purchase-dialog-backdrop")
+      .addEventListener("click", handleDialogBackdropClick);
   });
 }
 
@@ -117,10 +108,14 @@ function closePurchaseDialog(confirmed) {
   document.body.classList.remove("dialog-open");
 
   dialog.removeEventListener("keydown", handleDialogKeydown);
-  dialog.querySelector(".purchase-dialog-backdrop").removeEventListener("click", handleDialogBackdropClick);
+  dialog
+    .querySelector(".purchase-dialog-backdrop")
+    .removeEventListener("click", handleDialogBackdropClick);
 
-  // Return focus to trigger element
-  if (purchaseDialogTrigger && typeof purchaseDialogTrigger.focus === "function") {
+  if (
+    purchaseDialogTrigger &&
+    typeof purchaseDialogTrigger.focus === "function"
+  ) {
     purchaseDialogTrigger.focus();
   }
   purchaseDialogTrigger = null;
@@ -138,11 +133,10 @@ function handleDialogKeydown(event) {
     return;
   }
 
-  // Tab trapping
   if (event.key === "Tab") {
     const dialog = document.getElementById("purchase-dialog");
     const focusable = dialog.querySelectorAll(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
     );
     const first = focusable[0];
     const last = focusable[focusable.length - 1];
@@ -169,10 +163,6 @@ function handlePurchaseCancel() {
   closePurchaseDialog(false);
 }
 
-/* ==========================================================================
-   State schema + sanitizers
-   ========================================================================== */
-
 function createDefaultState() {
   return {
     favorites: [],
@@ -180,8 +170,8 @@ function createDefaultState() {
     user: null,
     readingSettings: {
       fontSize: "medium",
-      theme: "light"
-    }
+      theme: "light",
+    },
   };
 }
 
@@ -217,16 +207,19 @@ function sanitizeUser(value) {
 
   return {
     name: name.slice(0, 80),
-    phone: phone.slice(0, 30)
+    phone: phone.slice(0, 30),
   };
 }
 
 function sanitizeReadingSettings(value) {
-  const settings = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const settings =
+    value && typeof value === "object" && !Array.isArray(value) ? value : {};
 
   return {
-    fontSize: FONT_SIZES.includes(settings.fontSize) ? settings.fontSize : "medium",
-    theme: THEMES.includes(settings.theme) ? settings.theme : "light"
+    fontSize: FONT_SIZES.includes(settings.fontSize)
+      ? settings.fontSize
+      : "medium",
+    theme: THEMES.includes(settings.theme) ? settings.theme : "light",
   };
 }
 
@@ -239,20 +232,14 @@ function sanitizeState(value) {
     favorites: sanitizeBookIds(value.favorites),
     ownedBooks: sanitizeBookIds(value.ownedBooks),
     user: sanitizeUser(value.user),
-    readingSettings: sanitizeReadingSettings(value.readingSettings)
+    readingSettings: sanitizeReadingSettings(value.readingSettings),
   };
 }
-
-/* ==========================================================================
-   Safe localStorage access
-   ========================================================================== */
 
 function clearStoredState() {
   try {
     window.localStorage.removeItem(STORAGE_KEY);
-  } catch (error) {
-    /* Storage unavailable: the in-memory state is still reset. */
-  }
+  } catch (error) {}
 }
 
 function loadState() {
@@ -293,10 +280,6 @@ function saveState() {
     return false;
   }
 }
-
-/* ==========================================================================
-   Central store
-   ========================================================================== */
 
 let state = loadState();
 const subscribers = new Set();
@@ -342,10 +325,6 @@ function addOwnedBook(bookId) {
   return true;
 }
 
-/**
- * Step 6 hook: login and purchase confirmation belong here, so the detail view
- * never needs to know how a book reaches the library.
- */
 async function requestAcquire(book) {
   // Auth gate
   if (!state.user) {
@@ -354,17 +333,14 @@ async function requestAcquire(book) {
     return false;
   }
 
-  // Already owned
   if (state.ownedBooks.includes(book.id)) {
     return false;
   }
 
-  // Free book: direct acquisition
   if (book.price === 0) {
     return addOwnedBook(book.id);
   }
 
-  // Paid book: show confirmation dialog
   const confirmed = await showPurchaseDialog(book);
   if (confirmed) {
     return addOwnedBook(book.id);
@@ -379,7 +355,7 @@ function setTheme(theme) {
 
   setState({
     ...state,
-    readingSettings: { ...state.readingSettings, theme }
+    readingSettings: { ...state.readingSettings, theme },
   });
 }
 
@@ -390,7 +366,7 @@ function setFontSize(fontSize) {
 
   setState({
     ...state,
-    readingSettings: { ...state.readingSettings, fontSize }
+    readingSettings: { ...state.readingSettings, fontSize },
   });
 }
 
@@ -399,10 +375,6 @@ function resetState() {
   state = createDefaultState();
   emitChange();
 }
-
-/* ==========================================================================
-   Formatting helpers
-   ========================================================================== */
 
 function formatPrice(price) {
   if (price === 0) {
@@ -429,13 +401,9 @@ function syncStats() {
   setStatValue("stat-free", BOOKS.filter((book) => book.price === 0).length);
   setStatValue(
     "stat-samples",
-    BOOKS.filter((book) => book.sampleParagraphs.length >= 3).length
+    BOOKS.filter((book) => book.sampleParagraphs.length >= 3).length,
   );
 }
-
-/* ==========================================================================
-   Routing
-   ========================================================================== */
 
 function parseRoute() {
   const raw = window.location.hash.replace(/^#/, "");
@@ -539,7 +507,7 @@ function updateActiveNav(route) {
     catalog: "catalog",
     book: "catalog",
     reader: "catalog",
-    library: "library"
+    library: "library",
   };
   const activeRoute = routeMap[route.name] || "";
 
@@ -582,7 +550,6 @@ function renderRoute(options) {
     return;
   }
 
-  // Close purchase dialog on route change
   if (!document.getElementById("purchase-dialog")?.hidden) {
     closePurchaseDialog(false);
   }
@@ -612,14 +579,10 @@ function renderRoute(options) {
   window.scrollTo(0, 0);
 }
 
-/* ==========================================================================
-   Shared header / theme sync
-   ========================================================================== */
-
 function applyTheme() {
   document.documentElement.setAttribute(
     "data-theme",
-    state.readingSettings.theme
+    state.readingSettings.theme,
   );
 }
 
@@ -646,7 +609,7 @@ function syncThemeControl() {
   toggle.setAttribute("aria-pressed", String(isDark));
   toggle.setAttribute(
     "aria-label",
-    isDark ? "تغییر به حالت روشن" : "تغییر به حالت تیره"
+    isDark ? "تغییر به حالت روشن" : "تغییر به حالت تیره",
   );
   icon.textContent = isDark ? "☀" : "☾";
   label.textContent = isDark ? "روشن" : "تیره";
@@ -686,7 +649,7 @@ function syncHeader() {
   if (accountLink) {
     accountLink.setAttribute(
       "aria-label",
-      state.user ? `حساب کاربری ${state.user.name}` : "ورود یا حساب کاربری"
+      state.user ? `حساب کاربری ${state.user.name}` : "ورود یا حساب کاربری",
     );
   }
 
@@ -701,9 +664,11 @@ function syncHeader() {
       logoutBtn.id = "logout-btn";
       logoutBtn.className = "action-btn logout-btn";
       logoutBtn.textContent = "خروج";
-      logoutBtn.setAttribute("aria-label", `خروج از حساب کاربری ${state.user.name}`);
+      logoutBtn.setAttribute(
+        "aria-label",
+        `خروج از حساب کاربری ${state.user.name}`,
+      );
       logoutBtn.addEventListener("click", handleLogout);
-      // Insert before theme toggle
       const themeToggle = document.getElementById("theme-toggle");
       if (themeToggle) {
         headerActions.insertBefore(logoutBtn, themeToggle);
@@ -737,7 +702,7 @@ function syncFavoriteButtons() {
       "aria-label",
       isFavorite
         ? `حذف «${book.title}» از علاقه‌مندی‌ها`
-        : `افزودن «${book.title}» به علاقه‌مندی‌ها`
+        : `افزودن «${book.title}» به علاقه‌مندی‌ها`,
     );
 
     if (button.dataset.variant === "inline") {
@@ -749,10 +714,6 @@ function syncFavoriteButtons() {
     }
   }
 }
-
-/* ==========================================================================
-   Shared UI pieces
-   ========================================================================== */
 
 function categoryHref(category) {
   return `#catalog?category=${encodeURIComponent(category)}`;
@@ -804,7 +765,9 @@ function createCategoryGrid() {
 function createFavoriteButton(book, extraClass) {
   const button = document.createElement("button");
   const isFavorite = state.favorites.includes(book.id);
-  const isInline = Boolean(extraClass && extraClass.includes("favorite-inline"));
+  const isInline = Boolean(
+    extraClass && extraClass.includes("favorite-inline"),
+  );
 
   button.type = "button";
   button.className = "favorite-toggle";
@@ -832,7 +795,7 @@ function createFavoriteButton(book, extraClass) {
     "aria-label",
     isFavorite
       ? `حذف «${book.title}» از علاقه‌مندی‌ها`
-      : `افزودن «${book.title}» به علاقه‌مندی‌ها`
+      : `افزودن «${book.title}» به علاقه‌مندی‌ها`,
   );
 
   button.addEventListener("click", () => {
@@ -847,7 +810,7 @@ function createRating(book) {
   rating.className = "book-rating";
   rating.setAttribute(
     "aria-label",
-    `امتیاز ${ratingFormatter.format(book.rating)} از ۵`
+    `امتیاز ${ratingFormatter.format(book.rating)} از ۵`,
   );
 
   const star = document.createElement("span");
@@ -1000,10 +963,6 @@ function createEmptyState(title, text, linkHref, linkLabel) {
   return box;
 }
 
-/* ==========================================================================
-   Home view
-   ========================================================================== */
-
 function createHero() {
   const hero = document.createElement("section");
   hero.className = "hero";
@@ -1084,18 +1043,18 @@ function createStatsSection() {
     {
       id: "stat-favorites",
       label: "علاقه‌مندی‌ها",
-      value: state.favorites.length
+      value: state.favorites.length,
     },
     {
       id: "stat-free",
       label: "کتاب رایگان",
-      value: BOOKS.filter((book) => book.price === 0).length
+      value: BOOKS.filter((book) => book.price === 0).length,
     },
     {
       id: "stat-samples",
       label: "کتاب با نمونه",
-      value: BOOKS.filter((book) => book.sampleParagraphs.length >= 3).length
-    }
+      value: BOOKS.filter((book) => book.sampleParagraphs.length >= 3).length,
+    },
   ];
 
   for (const item of items) {
@@ -1127,7 +1086,7 @@ function createCategoriesSection() {
   const head = createSectionHead("دسته‌بندی‌ها", {
     note: "با انتخاب هر دسته، فهرست کتاب‌های همان موضوع را ببینید.",
     linkHref: "#categories",
-    linkLabel: "همهٔ دسته‌بندی‌ها"
+    linkLabel: "همهٔ دسته‌بندی‌ها",
   });
   head.querySelector("h2").id = "home-categories-title";
 
@@ -1264,10 +1223,10 @@ function buildHomeView() {
       title: "پیشنهادها",
       note: "کتاب‌هایی که بیشتر پیشنهاد می‌شوند.",
       books: BOOKS.filter((book) => book.featured).sort(
-        (a, b) => b.rating - a.rating
+        (a, b) => b.rating - a.rating,
       ),
-      seeAllHref: "#catalog?collection=featured"
-    })
+      seeAllHref: "#catalog?collection=featured",
+    }),
   );
 
   fragment.appendChild(
@@ -1276,8 +1235,8 @@ function buildHomeView() {
       title: "تازه‌ها",
       note: "جدیدترین کتاب‌های اضافه‌شده به مجموعه.",
       books: BOOKS.filter((book) => book.isNew),
-      seeAllHref: "#catalog?collection=new"
-    })
+      seeAllHref: "#catalog?collection=new",
+    }),
   );
 
   fragment.appendChild(
@@ -1286,16 +1245,12 @@ function buildHomeView() {
       title: "کتاب‌های رایگان",
       note: "خواندن بدون هزینه؛ همین حالا شروع کنید.",
       books: BOOKS.filter((book) => book.price === 0),
-      seeAllHref: "#catalog?collection=free"
-    })
+      seeAllHref: "#catalog?collection=free",
+    }),
   );
 
   return fragment;
 }
-
-/* ==========================================================================
-   Categories view
-   ========================================================================== */
 
 function buildCategoriesView() {
   const page = document.createElement("section");
@@ -1318,10 +1273,6 @@ function buildCategoriesView() {
   page.appendChild(createCategoryGrid());
   return page;
 }
-
-/* ==========================================================================
-   Catalog view
-   ========================================================================== */
 
 function normalizeSearchText(value) {
   if (typeof value !== "string") {
@@ -1356,7 +1307,7 @@ function readCatalogState(params) {
     category: CATEGORIES.includes(categoryParam) ? categoryParam : "",
     freeOnly,
     collection,
-    sort: CATALOG_SORTS.includes(sortParam) ? sortParam : "default"
+    sort: CATALOG_SORTS.includes(sortParam) ? sortParam : "default",
   };
 }
 
@@ -1395,10 +1346,10 @@ function buildCatalogHash(catalogState) {
 function hasActiveCatalogFilters(catalogState) {
   return Boolean(
     catalogState.q ||
-      catalogState.category ||
-      catalogState.freeOnly ||
-      catalogState.collection ||
-      catalogState.sort !== "default"
+    catalogState.category ||
+    catalogState.freeOnly ||
+    catalogState.collection ||
+    catalogState.sort !== "default",
   );
 }
 
@@ -1469,7 +1420,13 @@ function sortCatalogBooks(books, sort) {
   return sorted;
 }
 
-function createCatalogSelectField(labelText, id, options, selectedValue, onChange) {
+function createCatalogSelectField(
+  labelText,
+  id,
+  options,
+  selectedValue,
+  onChange,
+) {
   const field = document.createElement("div");
   field.className = "catalog-field";
 
@@ -1525,7 +1482,7 @@ function createCatalogToolbar(catalogState) {
   searchInput.addEventListener("input", () => {
     applyCatalogState(
       { ...currentCatalogState(), q: searchInput.value.trim() },
-      { source: "catalog-search" }
+      { source: "catalog-search" },
     );
   });
 
@@ -1536,15 +1493,15 @@ function createCatalogToolbar(catalogState) {
     "دسته‌بندی",
     "catalog-category-select",
     [{ value: "", label: "همهٔ دسته‌ها" }].concat(
-      CATEGORIES.map((category) => ({ value: category, label: category }))
+      CATEGORIES.map((category) => ({ value: category, label: category })),
     ),
     catalogState.category,
     (value) => {
       applyCatalogState(
         { ...currentCatalogState(), category: value },
-        { source: "category" }
+        { source: "category" },
       );
-    }
+    },
   );
 
   const collectionField = createCatalogSelectField(
@@ -1553,15 +1510,15 @@ function createCatalogToolbar(catalogState) {
     [
       { value: "", label: "همهٔ کتاب‌ها" },
       { value: "featured", label: COLLECTION_LABELS.featured },
-      { value: "new", label: COLLECTION_LABELS.new }
+      { value: "new", label: COLLECTION_LABELS.new },
     ],
     catalogState.collection,
     (value) => {
       applyCatalogState(
         { ...currentCatalogState(), collection: value },
-        { source: "collection" }
+        { source: "collection" },
       );
-    }
+    },
   );
 
   const freeLabel = document.createElement("label");
@@ -1574,7 +1531,7 @@ function createCatalogToolbar(catalogState) {
   freeCheckbox.addEventListener("change", () => {
     applyCatalogState(
       { ...currentCatalogState(), freeOnly: freeCheckbox.checked },
-      { source: "free" }
+      { source: "free" },
     );
   });
 
@@ -1589,15 +1546,15 @@ function createCatalogToolbar(catalogState) {
     "catalog-sort-select",
     CATALOG_SORTS.map((sort) => ({
       value: sort,
-      label: CATALOG_SORT_LABELS[sort]
+      label: CATALOG_SORT_LABELS[sort],
     })),
     catalogState.sort,
     (value) => {
       applyCatalogState(
         { ...currentCatalogState(), sort: value },
-        { source: "sort" }
+        { source: "sort" },
       );
-    }
+    },
   );
 
   const clearButton = document.createElement("button");
@@ -1694,7 +1651,7 @@ function getCatalogElements() {
     category: document.getElementById("catalog-category-select"),
     collection: document.getElementById("catalog-collection-select"),
     sort: document.getElementById("catalog-sort-select"),
-    free: document.getElementById("catalog-free-checkbox")
+    free: document.getElementById("catalog-free-checkbox"),
   };
 }
 
@@ -1742,7 +1699,7 @@ function syncHeaderSearch(catalogState) {
 function paintCatalog(catalogState, elements) {
   const books = sortCatalogBooks(
     filterCatalogBooks(catalogState),
-    catalogState.sort
+    catalogState.sort,
   );
 
   if (elements.heading) {
@@ -1755,7 +1712,7 @@ function paintCatalog(catalogState, elements) {
 
   if (elements.results) {
     elements.results.replaceChildren(
-      books.length === 0 ? createCatalogEmptyState() : createBookGrid(books)
+      books.length === 0 ? createCatalogEmptyState() : createBookGrid(books),
     );
   }
 
@@ -1787,7 +1744,7 @@ function applyCatalogState(catalogState, options) {
 function clearCatalogFilters() {
   applyCatalogState(
     { ...EMPTY_CATALOG_STATE },
-    { source: "clear", focusSearch: true }
+    { source: "clear", focusSearch: true },
   );
 }
 
@@ -1826,15 +1783,11 @@ function buildCatalogView(route) {
     count: lead,
     results,
     chips,
-    clear: toolbar.querySelector("#catalog-clear")
+    clear: toolbar.querySelector("#catalog-clear"),
   });
 
   return page;
 }
-
-/* ==========================================================================
-   Book detail view
-   ========================================================================== */
 
 function buildSampleAction(book) {
   const hasSample = book.sampleParagraphs.length > 0;
@@ -1943,7 +1896,7 @@ function focusOwnershipAction() {
 
 function createRelatedSection(book) {
   const related = BOOKS.filter(
-    (item) => item.category === book.category && item.id !== book.id
+    (item) => item.category === book.category && item.id !== book.id,
   ).slice(0, 4);
 
   if (related.length === 0) {
@@ -1954,13 +1907,10 @@ function createRelatedSection(book) {
   section.className = "detail-related";
   section.setAttribute("aria-labelledby", "detail-related-title");
 
-  const head = createSectionHead(
-    `کتاب‌های مرتبط در دستهٔ «${book.category}»`,
-    {
-      linkHref: categoryHref(book.category),
-      linkLabel: "همهٔ کتاب‌های این دسته"
-    }
-  );
+  const head = createSectionHead(`کتاب‌های مرتبط در دستهٔ «${book.category}»`, {
+    linkHref: categoryHref(book.category),
+    linkLabel: "همهٔ کتاب‌های این دسته",
+  });
   head.querySelector("h2").id = "detail-related-title";
 
   section.appendChild(head);
@@ -2005,7 +1955,7 @@ function buildBookDetailView(route) {
   category.textContent = book.category;
   category.setAttribute(
     "aria-label",
-    `مشاهدهٔ کتاب‌های دستهٔ ${book.category}`
+    `مشاهدهٔ کتاب‌های دستهٔ ${book.category}`,
   );
 
   const heading = document.createElement("h1");
@@ -2079,10 +2029,6 @@ function buildBookDetailView(route) {
   return page;
 }
 
-/* ==========================================================================
-   Library / login / fallback views
-   ========================================================================== */
-
 function buildLibraryView() {
   const ownedBooks = state.ownedBooks
     .map((id) => BOOK_BY_ID.get(id))
@@ -2138,8 +2084,8 @@ function buildLibraryView() {
         "هنوز کتابی دریافت نکرده‌اید",
         "کتاب‌های رایگان را ببینید یا کتاب‌های پولی را خریداری کنید تا اینجا نمایش داده شوند.",
         "#catalog?free=1",
-        "مشاهده کتاب‌های رایگان"
-      )
+        "مشاهده کتاب‌های رایگان",
+      ),
     );
   } else {
     const ownedGrid = document.createElement("div");
@@ -2150,7 +2096,6 @@ function buildLibraryView() {
     ownedSection.appendChild(ownedGrid);
   }
 
-  // Section 2: Favorites
   const favoritesSection = document.createElement("section");
   favoritesSection.className = "library-section";
   favoritesSection.setAttribute("aria-labelledby", "library-favorites-title");
@@ -2176,8 +2121,8 @@ function buildLibraryView() {
         "هنوز علاقه‌مندی ندارید",
         "کتاب‌هایی که دوست دارید را با کلیک روی آیکن قلب در کارت‌های کتاب یا صفحه جزئیات ذخیره کنید.",
         "#catalog",
-        "مرور کتاب‌ها"
-      )
+        "مرور کتاب‌ها",
+      ),
     );
   } else {
     const favoritesGrid = document.createElement("div");
@@ -2308,15 +2253,15 @@ function syncLibraryView() {
     lead.textContent = `${formatCount(ownedBooks.length)} کتاب دریافت‌شده، ${formatCount(favoriteBooks.length)} علاقه‌مندی.`;
   }
 
-  // Update owned section
-  const ownedSection = libraryView.querySelector("#library-owned-title")?.closest(".library-section");
+  const ownedSection = libraryView
+    .querySelector("#library-owned-title")
+    ?.closest(".library-section");
   if (ownedSection) {
     const countEl = ownedSection.querySelector(".library-section-count");
     if (countEl) {
       countEl.textContent = `${formatCount(ownedBooks.length)} کتاب`;
     }
 
-    // Replace content after head
     const existingGrid = ownedSection.querySelector(".book-grid");
     const existingEmpty = ownedSection.querySelector(".empty-state");
     if (existingGrid) existingGrid.remove();
@@ -2328,8 +2273,8 @@ function syncLibraryView() {
           "هنوز کتابی دریافت نکرده‌اید",
           "کتاب‌های رایگان را ببینید یا کتاب‌های پولی را خریداری کنید تا اینجا نمایش داده شوند.",
           "#catalog?free=1",
-          "مشاهده کتاب‌های رایگان"
-        )
+          "مشاهده کتاب‌های رایگان",
+        ),
       );
     } else {
       const ownedGrid = document.createElement("div");
@@ -2341,8 +2286,9 @@ function syncLibraryView() {
     }
   }
 
-  // Update favorites section
-  const favoritesSection = libraryView.querySelector("#library-favorites-title")?.closest(".library-section");
+  const favoritesSection = libraryView
+    .querySelector("#library-favorites-title")
+    ?.closest(".library-section");
   if (favoritesSection) {
     const countEl = favoritesSection.querySelector(".library-section-count");
     if (countEl) {
@@ -2360,8 +2306,8 @@ function syncLibraryView() {
           "هنوز علاقه‌مندی ندارید",
           "کتاب‌هایی که دوست دارید را با کلیک روی آیکن قلب در کارت‌های کتاب یا صفحه جزئیات ذخیره کنید.",
           "#catalog",
-          "مرور کتاب‌ها"
-        )
+          "مرور کتاب‌ها",
+        ),
       );
     } else {
       const favoritesGrid = document.createElement("div");
@@ -2462,7 +2408,6 @@ function buildLoginView(route) {
     nameField.appendChild(nameError);
     form.appendChild(nameField);
 
-    // Phone field
     const phoneField = document.createElement("div");
     phoneField.className = "form-field";
 
@@ -2490,10 +2435,10 @@ function buildLoginView(route) {
     phoneField.appendChild(phoneError);
     form.appendChild(phoneField);
 
-    // Notice
     const notice = document.createElement("p");
     notice.className = "login-notice";
-    notice.textContent = "این نسخه نمایشی است؛ رمز عبور نیاز نیست. نام و موبایل معتبر وارد کنید.";
+    notice.textContent =
+      "این نسخه نمایشی است؛ رمز عبور نیاز نیست. نام و موبایل معتبر وارد کنید.";
     form.appendChild(notice);
 
     // Actions
@@ -2549,7 +2494,6 @@ function handleLogin(event) {
 
   let hasError = false;
 
-  // Validate name
   const name = rawName.trim();
   if (!name) {
     nameInput.setAttribute("aria-invalid", "true");
@@ -2576,7 +2520,7 @@ function handleLogin(event) {
   // Success: set user state
   const user = {
     name: name.slice(0, 80),
-    phone: normalizedPhone.slice(0, 30)
+    phone: normalizedPhone.slice(0, 30),
   };
 
   setState({ ...state, user });
@@ -2599,18 +2543,18 @@ function buildReaderView(route) {
   const page = document.createElement("section");
   page.className = "page";
 
-  // Back link at top
   const topBack = document.createElement("a");
   topBack.className = "back-link";
   topBack.href = book ? `#book/${encodeURIComponent(book.id)}` : "#catalog";
-  topBack.textContent = book ? "← بازگشت به صفحهٔ کتاب" : "← بازگشت به فهرست کتاب‌ها";
+  topBack.textContent = book
+    ? "← بازگشت به صفحهٔ کتاب"
+    : "← بازگشت به فهرست کتاب‌ها";
   page.appendChild(topBack);
 
   if (!book) {
     return page;
   }
 
-  // Page head with title, author, category
   const head = document.createElement("div");
   head.className = "page-head";
 
@@ -2625,17 +2569,14 @@ function buildReaderView(route) {
   head.appendChild(lead);
   page.appendChild(head);
 
-  // Toolbar with font size and theme controls
   const toolbar = createReaderToolbar(book);
   page.appendChild(toolbar);
 
-  // Reader content
   const readerContent = document.createElement("article");
   readerContent.className = `reader-content font-${state.readingSettings.fontSize}`;
   readerContent.setAttribute("aria-label", `متن نمونهٔ کتاب ${book.title}`);
 
   if (book.sampleParagraphs.length === 0) {
-    // Empty sample fallback
     const emptyState = document.createElement("div");
     emptyState.className = "empty-state";
 
@@ -2655,7 +2596,6 @@ function buildReaderView(route) {
     emptyState.appendChild(backBtn);
     readerContent.appendChild(emptyState);
   } else {
-    // Render all sample paragraphs
     for (const paragraph of book.sampleParagraphs) {
       const p = document.createElement("p");
       p.textContent = paragraph;
@@ -2665,7 +2605,6 @@ function buildReaderView(route) {
 
   page.appendChild(readerContent);
 
-  // Back link at bottom
   const bottomBack = document.createElement("a");
   bottomBack.className = "back-link";
   bottomBack.href = `#book/${encodeURIComponent(book.id)}`;
@@ -2681,7 +2620,6 @@ function createReaderToolbar(book) {
   toolbar.setAttribute("role", "toolbar");
   toolbar.setAttribute("aria-label", "تنظیمات خواندن");
 
-  // Font size group
   const fontGroup = document.createElement("div");
   fontGroup.className = "toolbar-group";
   fontGroup.setAttribute("role", "group");
@@ -2690,7 +2628,7 @@ function createReaderToolbar(book) {
   const fontSizes = [
     { value: "small", label: "کوچک" },
     { value: "medium", label: "متوسط" },
-    { value: "large", label: "بزرگ" }
+    { value: "large", label: "بزرگ" },
   ];
 
   for (const size of fontSizes) {
@@ -2699,12 +2637,14 @@ function createReaderToolbar(book) {
     btn.className = "font-size-btn";
     btn.dataset.size = size.value;
     btn.textContent = size.label;
-    btn.setAttribute("aria-pressed", String(state.readingSettings.fontSize === size.value));
+    btn.setAttribute(
+      "aria-pressed",
+      String(state.readingSettings.fontSize === size.value),
+    );
     btn.addEventListener("click", () => setFontSize(size.value));
     fontGroup.appendChild(btn);
   }
 
-  // Theme group
   const themeGroup = document.createElement("div");
   themeGroup.className = "toolbar-group";
   themeGroup.setAttribute("role", "group");
@@ -2712,7 +2652,7 @@ function createReaderToolbar(book) {
 
   const themes = [
     { value: "light", label: "روشن" },
-    { value: "dark", label: "تیره" }
+    { value: "dark", label: "تیره" },
   ];
 
   for (const theme of themes) {
@@ -2721,7 +2661,10 @@ function createReaderToolbar(book) {
     btn.className = "theme-btn";
     btn.dataset.theme = theme.value;
     btn.textContent = theme.label;
-    btn.setAttribute("aria-pressed", String(state.readingSettings.theme === theme.value));
+    btn.setAttribute(
+      "aria-pressed",
+      String(state.readingSettings.theme === theme.value),
+    );
     btn.addEventListener("click", () => setTheme(theme.value));
     themeGroup.appendChild(btn);
   }
@@ -2802,7 +2745,14 @@ function buildNotFoundView() {
   head.appendChild(heading);
   head.appendChild(lead);
   page.appendChild(head);
-  page.appendChild(createEmptyState("چیزی برای نمایش نیست", "این مسیر وجود ندارد.", "#home", "بازگشت به خانه"));
+  page.appendChild(
+    createEmptyState(
+      "چیزی برای نمایش نیست",
+      "این مسیر وجود ندارد.",
+      "#home",
+      "بازگشت به خانه",
+    ),
+  );
   return page;
 }
 
@@ -2826,10 +2776,6 @@ function buildView(route) {
       return buildNotFoundView();
   }
 }
-
-/* ==========================================================================
-   Controls + boot
-   ========================================================================== */
 
 function handleReset() {
   resetState();
@@ -2860,7 +2806,7 @@ function initControls() {
       if (parseRoute().name === "catalog") {
         applyCatalogState(
           { ...currentCatalogState(), q: query },
-          { source: "header-search" }
+          { source: "header-search" },
         );
         return;
       }
@@ -2876,7 +2822,7 @@ function initControls() {
       if (parseRoute().name === "catalog") {
         applyCatalogState(
           { ...currentCatalogState(), q: query },
-          { source: "header-search" }
+          { source: "header-search" },
         );
         return;
       }
@@ -2889,7 +2835,6 @@ function initControls() {
     });
   }
 
-  // Create purchase confirmation dialog
   createPurchaseDialog();
 }
 
